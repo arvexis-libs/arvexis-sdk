@@ -1,0 +1,46 @@
+import { BYTEDANCE, WECHAT } from "cc/env";
+import { IInitParam } from "./ISdk";
+import { sys } from "cc";
+const WXSdkConfig = {
+    exchangeCode : "123271680",
+    exchangeUrl : "https://archive.gyyx.cn/api/login",
+    shareTitle:"",
+    shareContent:"",
+    shareUrl:"",
+    shareQuery:"",
+    adUnitId:"",
+}
+
+const TTSdkConfig = {
+    exchangeCode : "123271680",
+    exchangeUrl : "https://archive.gyyx.cn/api/login",
+    shareTitle:"",
+    shareContent:"",
+    shareUrl:"",
+    shareQuery:"",
+    adUnitId:"",
+}
+
+const FeiZhuConfig = {
+    exchangeCode : "123271680",
+    exchangeUrl : "https://archive.gyyx.cn/api/login",
+    shareTitle:"",
+    shareContent:"",
+    shareUrl:"",
+    shareQuery:"",
+    adUnitId:"",
+}
+export class SdkConfig{
+    public static getConfig():IInitParam | null{
+        if(WECHAT){
+            return WXSdkConfig;
+        }else if(BYTEDANCE){
+            return TTSdkConfig;
+        }else if(sys.os == sys.OS.ANDROID && sys.isNative){
+            //
+            return FeiZhuConfig;
+        }
+
+        return null;
+    }
+}
