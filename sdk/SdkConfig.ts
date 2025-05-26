@@ -2,7 +2,7 @@ import { BYTEDANCE, WECHAT } from "cc/env";
 import { IInitParam } from "./ISdk";
 import { sys } from "cc";
 const WXSdkConfig = {
-    exchangeCode : "123271680",
+    exchangeCode : "47826297",
     exchangeUrl : "https://archive.gyyx.cn/api/login",
     shareTitle:"",
     shareContent:"",
