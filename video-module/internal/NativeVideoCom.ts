@@ -50,14 +50,16 @@ export class NativeVideoCom extends VideoCom {
 
         this.mVideoPlayer.fullScreenOnAwake = true;
         this.mVideoPlayer.resourceType = param.resourceType == EVideoType.Remote ? VideoPlayer.ResourceType.REMOTE : VideoPlayer.ResourceType.LOCAL;
+        // this.mVideoPlayer.resourceType = VideoPlayer.ResourceType.REMOTE;
         if(param.resourceType == EVideoType.Local){
 
-            console.log("");
+            console.log(`[video] , src: ${param.src}`);
             this.loadAsync("InnerVideo", param.src, VideoClip).then((clip)=>{
                 this.mVideoPlayer.clip = clip;
             })
         }
         else{
+            console.log(`[video] , src: ${param.src}`);
             this.mVideoPlayer.remoteURL = param.src;
         }
         this.mVideoPlayer.loop = param.loop;
