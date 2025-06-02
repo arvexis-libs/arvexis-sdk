@@ -47,8 +47,9 @@ export class SdkManager extends Component {
         }
         else if(sys.os == sys.OS.ANDROID && sys.isNative)
         {
+            const forceDefaultSdk = false;
             // 
-            if(DEBUG){
+            if(DEBUG && forceDefaultSdk){
                 console.log("ANDROID Native , Debug, sdk");
                 this.createDefaultSdk();
             }
