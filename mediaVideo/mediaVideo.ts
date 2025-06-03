@@ -1,3 +1,19 @@
+/*
+ * @Author: LiuGuoBing
+ * @Description: 
+ * 
+ * 
+ * 1.  clip 
+ * 2.  tryInitializeRemote()  setRemoteSource()
+ * 3.  setRemoteSource()
+ * 4.  dispose() 
+ * 
+ * 
+ * -  setRemoteSource 
+ * -  onDisable 
+ * -  dispose() 
+ */
+
 import { _decorator, Component, VideoClip, RenderableComponent, Texture2D, loader, EventHandler, game, Game, CCString, Material, Sprite, SpriteFrame, gfx, director, VideoPlayer } from 'cc';
 import { JSB } from 'cc/env';
 const { ccclass, property} = _decorator;
@@ -254,7 +270,19 @@ export class MediaVideo extends Component {
     }
 
     public tryInitializeRemote(source: string) {
-        if(this._isInitialize) return;
+        // 
+        if(this._isInitialize && this._source === source) {
+            console.log(`[video] : ${source}`);
+            return;
+        }
+        
+        // 
+        if(this._isInitialize && this._source !== source) {
+            console.log(`[video] : ${this._source} -> ${source}`);
+            this._cleanupVideoResources();
+            this._isInitialize = false;
+        }
+        
         console.log(`[video] initializeRemote, ${source}`);
         this.clip = null!;
         this._source = source;
@@ -278,7 +306,9 @@ export class MediaVideo extends Component {
      */
     private _initializeNative() {
         // FFmpeg  VideoPlayer 
-        this.VideoView.node.destroy();
+        if(this.VideoView && this.VideoView.node) {
+            this.VideoView.node.destroy();
+        }
 
         this._video = new window.gfx.Video();
         this._video.addEventListener('loaded', () => this._onMetaLoaded());
@@ -345,6 +375,49 @@ export class MediaVideo extends Component {
     /**
      * 
      */
+    private _cleanupVideoResources() {
+        if (!this._video) return;
+        
+        console.log(`[video] `);
+        
+        if (JSB) {
+            // 
+            try {
+                // 
+                this._video.stop();
+                
+                // 
+                this._video.destroy();
+            } catch (e) {
+                console.error(`[video] :`, e);
+            }
+        } else {
+            // 
+            try {
+                this._video.pause();
+                this._video.currentTime = 0;
+                this._video.src = '';
+                this._video.load(); // 
+            } catch (e) {
+                console.error(`[video] :`, e);
+            }
+        }
+        
+        // 
+        this._currentState = VideoState.IDLE;
+        this._targetState = VideoState.IDLE;
+        this._loaded = false;
+        this._seekTime = 0;
+        this._nativeDuration = 0;
+        this._nativeWidth = 0;
+        this._nativeHeight = 0;
+        
+        console.log(`[video] `);
+    }
+
+    /**
+     * 
+     */
     private _updateVideoSource() {
         let url = '';
         if (this._source) {
@@ -358,8 +431,24 @@ export class MediaVideo extends Component {
         }
 
         console.log(`[video]_updateVideoSource, ${url}`);
+        
+        // 
+        if (this._video && JSB) {
+            this._cleanupVideoResources();
+            
+            // 
+            this._video = new window.gfx.Video();
+            this._video.addEventListener('loaded', () => this._onMetaLoaded());
+            this._video.addEventListener('ready', () => this._onReadyToPlay());
+            this._video.addEventListener('completed', () => this._onCompleted());
+            this._video.addEventListener('error', () => this._onError());
+            this._video.addEventListener('buffer_start', () => this._onBufferStart());
+            this._video.addEventListener('buffer_update', () => this._onBufferUpdate());
+            this._video.addEventListener('buffer_end', () => this._onBufferEnd());
+            this._video.addEventListener('frame_update', () => this._onFrameUpdate());
+        }
+        
         if (JSB) {
-            this._video.stop();
             this._video.setURL(url, this.cache);
             this._video.prepare();
         } else {
@@ -382,9 +471,19 @@ export class MediaVideo extends Component {
 
     // unregister game show and hide event handler
     public onDisable(): void {
+        console.log(`[video] onDisable `);
         game.off(Game.EVENT_SHOW, this._onShow, this);
         game.off(Game.EVENT_HIDE, this._onHide, this);
+        
+        // 
         this.stop();
+        this._cleanupVideoResources();
+        
+        // 
+        this._video = null;
+        this._isInitialize = false;
+        
+        console.log(`[video] onDisable `);
     }
 
     private _onShow(): void {
@@ -658,14 +757,12 @@ export class MediaVideo extends Component {
     public stop() {
         this._seekTime = 0;
         if (this._isInPlaybackState() && this._currentState != VideoState.STOP) {
-            // if (JSB) {
-            //     // this._video.stop();
-            // } else {
-            //     this._video.pause();
-            //     this._video.currentTime = 0;
-            // }
-            this._video.pause();
-            this._video.currentTime = 0;
+            if (JSB) {
+                this._video.stop();
+            } else {
+                this._video.pause();
+                this._video.currentTime = 0;
+            }
 
             this.node.emit('stopped', this);
             this._currentState = VideoState.STOP;
@@ -693,8 +790,13 @@ export class MediaVideo extends Component {
         }
     }
 
+    /**
+     * 
+     */
     public clear() {
-
+        console.log(`[video]  clear `);
+        this._cleanupVideoResources();
+        this._video = null;
     }
 
     /**
@@ -718,12 +820,58 @@ export class MediaVideo extends Component {
     }
 
     public setRemoteSource(source: string) {
-        this.clip = null!;
-        this._source = source;
+        console.log(`[video] setRemoteSource: ${source}`);
+        
+        // 
         if (this._currentState == VideoState.PLAYING) {
             this.stop();
         }
+        
+        // 
+        if (this._video && JSB) {
+            this._cleanupVideoResources();
+        }
+        
+        this.clip = null!;
+        this._source = source;
+        
         this._updateVideoSource();
+    }
+
+    /**
+     * 
+     * 
+     */
+    public dispose() {
+        console.log(`[video] `);
+        
+        // 
+        if (this._currentState === VideoState.PLAYING) {
+            this.stop();
+        }
+        
+        // 
+        this._cleanupVideoResources();
+        
+        // 
+        this._video = null;
+        this._isInitialize = false;
+        
+        // 
+        if (this._texture0) {
+            this._texture0.destroy();
+            this._texture0 = null!;
+        }
+        if (this._texture1) {
+            this._texture1.destroy();
+            this._texture1 = null!;
+        }
+        if (this._texture2) {
+            this._texture2.destroy();
+            this._texture2 = null!;
+        }
+        
+        console.log(`[video] `);
     }
 }
 
