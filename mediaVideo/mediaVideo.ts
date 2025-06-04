@@ -12,6 +12,7 @@
  * -  setRemoteSource 
  * -  onDisable 
  * -  dispose() 
+ * - 
  */
 
 import { _decorator, Component, VideoClip, RenderableComponent, Texture2D, loader, EventHandler, game, Game, CCString, Material, Sprite, SpriteFrame, gfx, director, VideoPlayer } from 'cc';
@@ -126,6 +127,11 @@ export class MediaVideo extends Component {
     private _lastPlayState: boolean = false;            //
     private _volume: number = -1;
     
+    // 
+    private _isTransitioning: boolean = false;         //
+    private _keepLastFrame: boolean = false;           //
+    private _transitionTimeout: any = null;            //
+    
     @property(VideoClip)
     get clip() {
         return this._clip;
@@ -144,6 +150,7 @@ export class MediaVideo extends Component {
     }
 
     set source(value: string) {
+        console.log(`[video] : ${value}`);
         this._source = value;
     }
 
@@ -187,6 +194,10 @@ export class MediaVideo extends Component {
 
     @property(Number)
     height: number = 1920;
+
+    // 
+    @property(Number)
+    transitionDuration: number = 200;
 
     // current position of the video which is playing
     get currentTime() {
@@ -270,35 +281,173 @@ export class MediaVideo extends Component {
     }
 
     public tryInitializeRemote(source: string) {
+        const currentSource = this.source;
+        
         // 
-        if(this._isInitialize && this._source === source) {
+        if(this._isInitialize && currentSource === source) {
             console.log(`[video] : ${source}`);
             return;
         }
         
         // 
-        if(this._isInitialize && this._source !== source) {
-            console.log(`[video] : ${this._source} -> ${source}`);
-            // 
-            if (this._currentState === VideoState.PLAYING) {
-                this.stop();
-            }
-            this._cleanupVideoResources();
-            this._isInitialize = false;
+        if(this._isInitialize && currentSource !== source) {
+            console.log(`[video] : ${currentSource} -> ${source}`);
+            this._startSmoothTransition(source);
+            return;
         }
         
-        console.log(`[video] initializeRemote, ${source}`);
+        // console.log(`[video] initializeRemote, ${source}`);
         this.clip = null!;
-        this._source = source;
         
         // VideoPlayerremoteURL
         if (this.VideoView) {
             this.VideoView.remoteURL = source;
-            console.log(`[video] initializeRemote VideoPlayer.remoteURL: ${source}`);
+            // console.log(`[video] initializeRemote VideoPlayer.remoteURL: ${source}`);
         }
         
         this._initialize();
-        this._isInitialize = true;
+        this.setRemoteSource(source);
+    }
+
+    /**
+     * 
+     */
+    private _startSmoothTransition(source: string) {
+        this.source = source;
+        console.log(`[video] `);
+        this._isTransitioning = true;
+        this._keepLastFrame = true;
+        
+        // 
+        if (this._transitionTimeout) {
+            clearTimeout(this._transitionTimeout);
+            this._transitionTimeout = null;
+        }
+        
+        // 
+        if (this._video && this._currentState === VideoState.PLAYING) {
+            try {
+                if (JSB) {
+                    this._video.stop();
+                } else {
+                    this._video.pause();
+                }
+            } catch (e) {
+                console.warn('[video] :', e);
+            }
+        }
+
+        console.log(`[video] `);
+        
+        // 
+        this._currentState = VideoState.PREPARING;
+        
+        // 
+        this._transitionTimeout = setTimeout(() => {
+            this._cleanupVideoResourcesForTransition();
+        }, this.transitionDuration);
+    }
+
+    /**
+     * 
+     */
+    private _finishSmoothTransition() {
+        console.log(`[video] , ${this.source}`);
+        
+        // 
+        if (this._transitionTimeout) {
+            clearTimeout(this._transitionTimeout);
+            this._transitionTimeout = null;
+        }
+        
+        this._isTransitioning = false;
+        this._keepLastFrame = false;
+        
+        this._initialize();
+        this.finalSetRemoteSource(this.source);
+    }
+
+    /**
+     * 
+     */
+    private _cleanupVideoResourcesForTransition() {
+        if (!this._video) {
+            // 
+            this._finishSmoothTransition();
+            return;
+        }
+        
+        console.log(`[video] `);
+        
+        // 
+        this._currentState = VideoState.PREPARING;
+        this._targetState = VideoState.IDLE;
+        this._loaded = false;
+        this._seekTime = 0;
+        this._nativeDuration = 0;
+        this._nativeWidth = 0;
+        this._nativeHeight = 0;
+        
+        if (JSB) {
+            // 
+            try {
+                // 
+                if (typeof this._video.stop === 'function') {
+                    this._video.stop();
+                }
+                
+                // 
+                this.scheduleOnce(() => {
+                    try {
+                        // 
+                        if (this._video && typeof this._video.destroy === 'function') {
+                            this._video.destroy();
+                        }
+                    } catch (e) {
+                        console.error(`[video] :`, e);
+                    }
+                    
+                    // 
+                    this._video = null;
+                    this._isInitialize = false;
+                    
+                    console.log(`[video] `);
+                    
+                    // 
+                    this._finishSmoothTransition();
+                }, 0.1);
+                
+            } catch (e) {
+                console.error(`[video] :`, e);
+                // 
+                this._video = null;
+                this._isInitialize = false;
+                this._finishSmoothTransition();
+            }
+        } else {
+            // 
+            try {
+                this._video.pause();
+                this._video.currentTime = 0;
+                this._video.src = '';
+                this._video.load(); // 
+                
+                // 
+                this._video = null;
+                this._isInitialize = false;
+                
+                console.log(`[video] `);
+                
+                // 
+                this._finishSmoothTransition();
+            } catch (e) {
+                console.error(`[video] :`, e);
+                // 
+                this._video = null;
+                this._isInitialize = false;
+                this._finishSmoothTransition();
+            }
+        }
     }
 
     /**
@@ -310,6 +459,7 @@ export class MediaVideo extends Component {
         } else {
             this._initializeBrowser();
         }
+        this._isInitialize = true;
     }
 
     /**
@@ -323,7 +473,7 @@ export class MediaVideo extends Component {
 
         try {
             // 
-            if (this._video) {
+            if (this._video && !this._isTransitioning) {
                 console.log('[video] ');
                 this._cleanupVideoResources();
             }
@@ -449,8 +599,8 @@ export class MediaVideo extends Component {
      */
     private _updateVideoSource() {
         let url = '';
-        if (this._source) {
-            url = this._source;
+        if (this.source) {
+            url = this.source;
         }
         if (this._clip) {
             url = this._clip.nativeUrl;
@@ -529,6 +679,14 @@ export class MediaVideo extends Component {
         game.off(Game.EVENT_HIDE, this._onHide, this);
         
         // 
+        if (this._transitionTimeout) {
+            clearTimeout(this._transitionTimeout);
+            this._transitionTimeout = null;
+        }
+        this._isTransitioning = false;
+        this._keepLastFrame = false;
+        
+        // 
         this.stop();
         this._cleanupVideoResources();
         
@@ -555,7 +713,12 @@ export class MediaVideo extends Component {
     update(deltaTime: number) {
         if (this._isInPlaybackState() && !JSB && this._video && this._texture0) {
             // 
-            if (!this._texture0.isValid) {
+            if (this._isTransitioning) {
+                return;
+            }
+            
+            // 
+            if (!this._texture0 || !this._texture0.isValid) {
                 console.warn('[video] update');
                 return;
             }
@@ -567,13 +730,17 @@ export class MediaVideo extends Component {
             
             // 
             if (this._currentState === VideoState.IDLE || 
-                this._currentState === VideoState.ERROR) {
+                this._currentState === VideoState.ERROR ||
+                this._currentState === VideoState.PREPARING) {
                 return;
             }
             
             try {
-                this._texture0.uploadData(this._video);
-                this._updateMaterial();
+                // 
+                if (this._texture0 && this._texture0.isValid && !this._isTransitioning) {
+                    this._texture0.uploadData(this._video);
+                    this._updateMaterial();
+                }
             } catch (error) {
                 console.error('[video] update:', error);
                 // 
@@ -596,6 +763,18 @@ export class MediaVideo extends Component {
             return;
         }
         
+        // 
+        if (this._isTransitioning) {
+            console.warn('[video] ');
+            return;
+        }
+        
+        // 
+        if (!texture2D || !texture2D.isValid || !texture) {
+            console.warn('[video] ');
+            return;
+        }
+        
         if (!buffers.length) {
             buffers[0] = new Uint8Array(texture.size);
         }
@@ -606,7 +785,10 @@ export class MediaVideo extends Component {
         
         try {
             director.root.device.copyTextureToBuffers(texture, buffers, regions);
-            texture2D.uploadData(buffers[0]);
+            // 
+            if (!this._isTransitioning && texture2D && texture2D.isValid) {
+                texture2D.uploadData(buffers[0]);
+            }
         } catch (error) {
             console.error('[video] :', error);
         }
@@ -622,26 +804,31 @@ export class MediaVideo extends Component {
         }
         
         // 
+        if (this._isTransitioning) {
+            return;
+        }
+        
+        // 
         if (this._currentState === VideoState.IDLE || 
             this._currentState === VideoState.ERROR ||
-            this._currentState === VideoState.STOP) {
-            console.warn('[video] ');
+            this._currentState === VideoState.STOP ||
+            this._currentState === VideoState.PREPARING) {
             return;
         }
         
         try {
             let material = this.render.getMaterialInstance(0);
-            if (material && this._texture0) {
+            if (material && this._texture0 && this._texture0.isValid && !this._isTransitioning) {
                 material.setProperty('texture0', this._texture0);
                 switch (this._pixelFormat) {
                     case PixelFormat.I420:
-                        if (this._texture2) {
+                        if (this._texture2 && this._texture2.isValid) {
                             material.setProperty('texture2', this._texture2);
                         }
                     // fall through
                     case PixelFormat.NV12:
                     case PixelFormat.NV21:
-                        if (this._texture1) {
+                        if (this._texture1 && this._texture1.isValid) {
                             material.setProperty('texture1', this._texture1);
                         }
                         break;
@@ -694,17 +881,26 @@ export class MediaVideo extends Component {
      * @param height 
      */
     private _resetTexture(texture: Texture2D, width: number, height: number, format?: number) {
-        texture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
-        texture.setMipFilter(Texture2D.Filter.LINEAR);
-        texture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+        if (!texture) {
+            console.warn('[video] ');
+            return;
+        }
         
+        try {
+            texture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+            texture.setMipFilter(Texture2D.Filter.LINEAR);
+            texture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+            
 
-        texture.reset({
-            width: width,
-            height: height,
-            //@ts-ignore
-            format:  format ? format : JSB ?gfx.Format.R8: gfx.Format.RGB8
-        });
+            texture.reset({
+                width: width,
+                height: height,
+                //@ts-ignore
+                format:  format ? format : JSB ?gfx.Format.R8: gfx.Format.RGB8
+            });
+        } catch (error) {
+            console.error('[video] :', error);
+        }
     }
 
     private _onMetaLoaded() {
@@ -720,6 +916,13 @@ export class MediaVideo extends Component {
             this.currentTime = this._seekTime;
         }
         this._updateTexture();
+        
+        // 
+        if (this._isTransitioning) {
+            console.log('[video] ');
+            this._finishSmoothTransition();
+        }
+        
         this.node.emit('ready', this);
         EventHandler.emitEvents(this.videoPlayerEvent, this, EventType.READY);
         
@@ -774,6 +977,11 @@ export class MediaVideo extends Component {
         if (!this._isInPlaybackState() || !JSB || !this._video) return;
         
         // 
+        if (this._isTransitioning) {
+            return;
+        }
+        
+        // 
         if (!this._texture0 || !this._texture0.isValid || 
             !this._texture1 || !this._texture1.isValid || 
             !this._texture2 || !this._texture2.isValid) {
@@ -783,7 +991,8 @@ export class MediaVideo extends Component {
         
         // 
         if (this._currentState === VideoState.IDLE || 
-            this._currentState === VideoState.ERROR) {
+            this._currentState === VideoState.ERROR ||
+            this._currentState === VideoState.PREPARING) {
             return;
         }
         
@@ -792,17 +1001,21 @@ export class MediaVideo extends Component {
             if (!datas || !datas.length) return;
 
             // 
-            if (datas.length > 0 && this._texture0 && this._texture0.isValid) {
+            // 
+            if (datas.length > 0 && this._texture0 && this._texture0.isValid && !this._isTransitioning) {
                 this._texture0.uploadData(datas[0]);
             }
-            if (datas.length > 1 && this._texture1 && this._texture1.isValid) {
+            if (datas.length > 1 && this._texture1 && this._texture1.isValid && !this._isTransitioning) {
                 this._texture1.uploadData(datas[1]);
             }
-            if (datas.length > 2 && this._texture2 && this._texture2.isValid) {
+            if (datas.length > 2 && this._texture2 && this._texture2.isValid && !this._isTransitioning) {
                 this._texture2.uploadData(datas[2]);
             }
             
-            this._updateMaterial();
+            // 
+            if (!this._isTransitioning) {
+                this._updateMaterial();
+            }
         } catch (error) {
             console.error('[video] :', error);
             // 
@@ -969,38 +1182,59 @@ export class MediaVideo extends Component {
     }
 
     public setRemoteSource(source: string) {
-        console.log(`[video] setRemoteSource: ${source}`);
+        console.log(`[video] setRemoteSource: ${source}, : ${this.source}, : ${this._currentState}`);
+        
+        const currentSource = this.source; 
         
         // 
-        if (this._source === source && this._currentState == VideoState.PLAYING) {
-            console.log(`[video] : ${source}, ${this._currentState}`);
+        // 
+        if (currentSource === source && this._currentState === VideoState.PLAYING && this._isInitialize) {
+            console.log(`[video] : ${source}`);
             return;
         }
         
         // 
-        if (this._currentState == VideoState.PLAYING) {
-            this.stop();
+        if (currentSource != "")
+        {
+            if (this._isInitialize  && currentSource !== source) {
+                console.log(`[video] setRemoteSource : ${currentSource} -> ${source}`);
+                this._startSmoothTransition(source);
+                return;
+            } else if (currentSource === source && this._currentState !== VideoState.PLAYING) {
+                // 
+                console.log(`[video] : ${source}, : ${this._currentState}`);
+            }
         }
-        
+
+        this.finalSetRemoteSource(source);
+    }
+
+    private finalSetRemoteSource(source: string) {
         // VideoPlayerremoteURL
         if (this.VideoView) {
             this.VideoView.remoteURL = source;
-            console.log(`[video] VideoPlayer.remoteURL: ${source}`);
-        }
-        
-        // 
-        if (JSB && this._video && this._source !== source) {
-            // 
-            this._currentState = VideoState.IDLE;
-            this._targetState = VideoState.IDLE;
-            this._loaded = false;
-            this._seekTime = 0;
         }
         
         this.clip = null!;
-        this._source = source;
+        this.source = source; // setter
         
         this._updateVideoSource();
+    }
+
+    /**
+     * 
+     * @param duration 
+     */
+    public setTransitionDuration(duration: number) {
+        this.transitionDuration = Math.max(50, Math.min(1000, duration)); // 50-1000ms
+        console.log(`[video] : ${this.transitionDuration}ms`);
+    }
+
+    /**
+     * 
+     */
+    public isTransitioning(): boolean {
+        return this._isTransitioning;
     }
 
     /**
@@ -1009,6 +1243,14 @@ export class MediaVideo extends Component {
      */
     public dispose() {
         console.log(`[video] `);
+        
+        // 
+        if (this._transitionTimeout) {
+            clearTimeout(this._transitionTimeout);
+            this._transitionTimeout = null;
+        }
+        this._isTransitioning = false;
+        this._keepLastFrame = false;
         
         // 
         if (this._currentState === VideoState.PLAYING) {

@@ -60,7 +60,6 @@ export class NativeVideoCom extends VideoCom {
             // VideoPlayerremoteURL
             this.mVideoPlayer.remoteURL = param.src;
             this.mediaVideo.tryInitializeRemote(param.src);
-            this.mediaVideo.setRemoteSource(param.src);
         }
         this.mediaVideo.loop = param.loop;
     }
@@ -77,10 +76,7 @@ export class NativeVideoCom extends VideoCom {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
-                // MediaVideo
-                this.scheduleOnce(() => {
-                    this.mediaVideo.play();
-                }, 0.1);
+                this.mediaVideo.play();
                 break;
             case EventType.STOPPED:
                 console.log('[video] ');
