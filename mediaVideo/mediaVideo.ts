@@ -305,8 +305,8 @@ export class MediaVideo extends Component {
         try {
             // 
             if (this._video) {
-                console.log('[video] ');
                 this.copyCurrentFrameToSprite();
+                console.log('[video] ');
                 this._cleanupVideoResources();
             }
             
@@ -719,13 +719,6 @@ export class MediaVideo extends Component {
     }
 
     private _onReadyToPlay() {        
-        
-        // tempSprite  video 
-        this._isTransitioning = false;
-        this.videoOpacity.opacity = 255;
-        this.tempSprite.node.active = false;
-
-        
         this._updatePixelFormat();
         this._currentState = VideoState.PREPARED;
         if (this._seekTime > 0.1) {
@@ -741,6 +734,11 @@ export class MediaVideo extends Component {
             console.log('[video] ');
             this.play();
         }
+
+        // tempSprite  video 
+        this._isTransitioning = false;
+        this.videoOpacity.opacity = 255;
+        this.tempSprite.node.active = false;
     }
 
     private _onCompleted() {
@@ -1111,43 +1109,244 @@ export class MediaVideo extends Component {
             console.log('[video] copy,tempSprite');
             
             // 
-            const copiedTexture = new Texture2D();
+            const success = this._copyFrameByPixelFormat();
             
-            // 
-            copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
-            copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
-            copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
-            
-            // 
-            copiedTexture.reset({
-                width: this._texture0.width,
-                height: this._texture0.height,
-                //@ts-ignore
-                format: JSB ? gfx.Format.R8 : gfx.Format.RGB8
-            });
-            
-            if (JSB) {
-                // buffer
-                this._copyTextureDataNative(copiedTexture);
+            if (success) {
+                console.log('[video] tempSprite');
+                return true;
             } else {
-                // canvas
-                this._copyTextureDataBrowser(copiedTexture);
+                console.warn('[video] copy,');
+                return false;
             }
-            
-            // tempSpriteSpriteFrame
-            if (!this.tempSprite.spriteFrame) {
-                this.tempSprite.spriteFrame = new SpriteFrame();
-            }
-            
-            // tempSprite
-            this.tempSprite.spriteFrame.texture = copiedTexture;
-            
-            console.log('[video] tempSprite');
-            return true;
             
         } catch (error) {
             console.error('[video] copy,tempSprite:', error);
             return false;
+        }
+    }
+
+    /**
+     * 
+     * @returns {boolean} 
+     */
+    private _copyFrameByPixelFormat(): boolean {
+        // 
+        const currentPixelFormat = JSB ? this._video.pixelFormat() : PixelFormat.RGB;
+        console.log(`[video] copy,: ${currentPixelFormat}`);
+        
+        if (JSB) {
+            // 
+            return this._copyFrameNativeByFormat(currentPixelFormat);
+        } else {
+            // video
+            return this._copyFrameBrowser();
+        }
+    }
+
+    /**
+     * 
+     * @param pixelFormat 
+     * @returns {boolean} 
+     */
+    private _copyFrameNativeByFormat(pixelFormat: PixelFormat): boolean {
+        try {
+            switch (pixelFormat) {
+                case PixelFormat.RGB:
+                case PixelFormat.RGBA:
+                    return this._copySimpleFormat(pixelFormat);
+                
+                case PixelFormat.I420:
+                    return this._copyYUVFormat('I420');
+                
+                case PixelFormat.NV12:
+                    return this._copyYUVFormat('NV12');
+                
+                case PixelFormat.NV21:
+                    return this._copyYUVFormat('NV21');
+                
+                default:
+                    console.warn(`[video] copy,: ${pixelFormat}`);
+                    // RGB
+                    return this._copySimpleFormat(PixelFormat.RGB);
+            }
+        } catch (error) {
+            console.error('[video] copy,:', error);
+            return false;
+        }
+    }
+
+    /**
+     * RGB/RGBA
+     * @param pixelFormat 
+     * @returns {boolean} 
+     */
+    private _copySimpleFormat(pixelFormat: PixelFormat): boolean {
+        // 
+        const copiedTexture = new Texture2D();
+        
+        // 
+        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
+        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+        
+        // 
+        let textureFormat: gfx.Format;
+        if (pixelFormat === PixelFormat.RGBA) {
+            textureFormat = gfx.Format.RGBA8;
+        } else {
+            textureFormat = JSB ? gfx.Format.R8 : gfx.Format.RGB8;
+        }
+        
+        // 
+        copiedTexture.reset({
+            width: this._texture0.width,
+            height: this._texture0.height,
+            format: textureFormat as any
+        });
+        
+        // 
+        this._copyTextureDataNative(copiedTexture);
+        
+        // tempSpriteSpriteFrame
+        if (!this.tempSprite.spriteFrame) {
+            this.tempSprite.spriteFrame = new SpriteFrame();
+        }
+        
+        // tempSprite
+        this.tempSprite.spriteFrame.texture = copiedTexture;
+        
+        // 
+        this._setTempSpriteMaterial(pixelFormat);
+        
+        return true;
+    }
+
+    /**
+     * YUVI420/NV12/NV21
+     * @param formatName 
+     * @returns {boolean} 
+     */
+    private _copyYUVFormat(formatName: string): boolean {
+        console.log(`[video] copy,YUV: ${formatName}`);
+        
+        // YUVRGB
+        // RT
+        const copiedTexture = new Texture2D();
+        
+        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
+        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+        
+        // YUVRGBRGBA
+        copiedTexture.reset({
+            width: this._texture0.width,
+            height: this._texture0.height,
+            format: gfx.Format.RGBA8 as any
+        });
+        
+        // YUVGPU
+        // Y
+        // YUVRGB shader
+        this._copyTextureDataNative(copiedTexture);
+        
+        // tempSpriteSpriteFrame
+        if (!this.tempSprite.spriteFrame) {
+            this.tempSprite.spriteFrame = new SpriteFrame();
+        }
+        
+        this.tempSprite.spriteFrame.texture = copiedTexture;
+        
+        // RGB
+        this._setTempSpriteMaterial(PixelFormat.RGBA);
+        
+        return true;
+    }
+
+    /**
+     * 
+     * @returns {boolean} 
+     */
+    private _copyFrameBrowser(): boolean {
+        // _texture0video
+        if (!this._video) {
+            throw new Error('');
+        }
+        
+        // 
+        const copiedTexture = new Texture2D();
+        
+        // 
+        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
+        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+        
+        // RGB
+        copiedTexture.reset({
+            width: this._video.videoWidth || this.width,
+            height: this._video.videoHeight || this.height,
+            format: gfx.Format.RGB8 as any
+        });
+        
+        // 
+        this._copyTextureDataBrowser(copiedTexture);
+        
+        // tempSpriteSpriteFrame
+        if (!this.tempSprite.spriteFrame) {
+            this.tempSprite.spriteFrame = new SpriteFrame();
+        }
+        
+        // tempSprite
+        this.tempSprite.spriteFrame.texture = copiedTexture;
+        
+        // RGB
+        this._setTempSpriteMaterial(PixelFormat.RGB);
+        
+        return true;
+    }
+
+    /**
+     * tempSprite
+     * @param pixelFormat 
+     */
+    private _setTempSpriteMaterial(pixelFormat: PixelFormat): void {
+        // tempSpriteSpriteindex=1
+        const materialIndex = 1;
+        
+        try {
+            switch (pixelFormat) {
+                case PixelFormat.RGB:
+                    if (this.rgb && this.rgb[materialIndex]) {
+                        this.tempSprite.setMaterial(this.rgb[materialIndex], 0);
+                    }
+                    break;
+                case PixelFormat.RGBA:
+                    if (this.rgba && this.rgba[materialIndex]) {
+                        this.tempSprite.setMaterial(this.rgba[materialIndex], 0);
+                    }
+                    break;
+                case PixelFormat.I420:
+                    if (this.i420 && this.i420[materialIndex]) {
+                        this.tempSprite.setMaterial(this.i420[materialIndex], 0);
+                    }
+                    break;
+                case PixelFormat.NV12:
+                    if (this.nv12 && this.nv12[materialIndex]) {
+                        this.tempSprite.setMaterial(this.nv12[materialIndex], 0);
+                    }
+                    break;
+                case PixelFormat.NV21:
+                    if (this.nv21 && this.nv21[materialIndex]) {
+                        this.tempSprite.setMaterial(this.nv21[materialIndex], 0);
+                    }
+                    break;
+                default:
+                    console.warn(`[video] copy,: ${pixelFormat}`);
+                    break;
+            }
+            
+            console.log(`[video] copy,tempSprite: ${pixelFormat}`);
+        } catch (error) {
+            console.error('[video] copy,tempSprite:', error);
         }
     }
     
