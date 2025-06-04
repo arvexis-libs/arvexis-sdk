@@ -39,6 +39,7 @@ export class NativeVideoCom extends VideoCom {
         this.fixPosterSprite();
     }
 
+
     play(param: IVideoParam): void {
         super.play(param);
         this.tryInit();
@@ -56,6 +57,8 @@ export class NativeVideoCom extends VideoCom {
         }
         else{
             console.log(`[video] , src: ${param.src}`);
+            // VideoPlayerremoteURL
+            this.mVideoPlayer.remoteURL = param.src;
             this.mediaVideo.tryInitializeRemote(param.src);
             this.mediaVideo.setRemoteSource(param.src);
         }
@@ -66,23 +69,34 @@ export class NativeVideoCom extends VideoCom {
         console.log(`[video] NativeVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
         switch(eventType){
             case EventType.PREPARING:
+                console.log('[video] ...');
                 break;
             case EventType.LOADED:
+                console.log('[video] ');
                 if (this.uiOpacity.opacity == 0) {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
-                this.mediaVideo.play();
+                // MediaVideo
+                this.scheduleOnce(() => {
+                    this.mediaVideo.play();
+                }, 0.1);
                 break;
             case EventType.STOPPED:
+                console.log('[video] ');
                 this.uiOpacity.opacity = 0;
                 this.onStopped();
                 break;
             case EventType.PLAYING:
+                console.log('[video] ');
                 if (this.uiOpacity.opacity == 0) {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
+                break;
+            case EventType.ERROR:
+                console.log('[video] ');
+                this.uiOpacity.opacity = 0;
                 break;
         }
     }
@@ -138,7 +152,18 @@ export class NativeVideoCom extends VideoCom {
 
     protected onDestroy(): void {
         super.onDestroy();
+        console.log('[video] NativeVideoCom onDestroy ');
+        
+        // 
+        if (this.mediaVideo) {
+            this.mediaVideo.stop();
+            // 
+            this.mediaVideo.dispose();
+        }
+        
+        console.log('[video] NativeVideoCom onDestroy ');
     }
+
 
     seek(time: number): void {
         this.mediaVideo.seek(time);
