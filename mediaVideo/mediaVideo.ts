@@ -15,7 +15,9 @@
  * - 
  */
 
-import { _decorator, Component, VideoClip, RenderableComponent, Texture2D, loader, EventHandler, game, Game, CCString, Material, Sprite, SpriteFrame, gfx, director, VideoPlayer } from 'cc';
+import { UITransform } from 'cc';
+import { UIOpacity } from 'cc';
+import { _decorator, Component, VideoClip, RenderableComponent, Texture2D, loader, EventHandler, game, Game, CCString, Material, Sprite, SpriteFrame, gfx, director, VideoPlayer, screen } from 'cc';
 import { JSB } from 'cc/env';
 const { ccclass, property} = _decorator;
 export enum EventType {     //
@@ -40,8 +42,8 @@ enum VideoState {       //
     PREPARED = 2,       //
     PLAYING = 3,        //
     PAUSED = 4,         //
-    STOP = 5,
-    COMPLETED = 5       //
+    STOP = 5,           //
+    COMPLETED = 6       //
 };
 
 enum ReadyState {       //
@@ -94,8 +96,6 @@ export function getEventName(eventType: EventType): string {
             return 'buffer_update';
         case EventType.BUFFER_END:
             return 'buffer_end';
-        case EventType.INIT: // EventTypeINIT
-            return 'init';
         default:
             return 'unknown';
     }
@@ -125,12 +125,15 @@ export class MediaVideo extends Component {
     private _isBuffering: boolean = false;              
     private _inBackground: boolean = false;             //
     private _lastPlayState: boolean = false;            //
-    private _volume: number = -1;
+    private _volume: number = 1;
     
-    // 
-    private _isTransitioning: boolean = false;         //
-    private _keepLastFrame: boolean = false;           //
-    private _transitionTimeout: any = null;            //
+    /** Sprite */
+    @property(Sprite)
+    private tempSprite: Sprite = null!;
+
+    /**  */
+    @property(UIOpacity)
+    private videoOpacity: UIOpacity = null!;
     
     @property(VideoClip)
     get clip() {
@@ -195,10 +198,6 @@ export class MediaVideo extends Component {
     @property(Number)
     height: number = 1920;
 
-    // 
-    @property(Number)
-    transitionDuration: number = 200;
-
     // current position of the video which is playing
     get currentTime() {
         if (!this._video) return 0;
@@ -240,30 +239,6 @@ export class MediaVideo extends Component {
         return this._nativeDuration;
     }
     
-    // get width(): number {
-    //     if (!this._isInPlaybackState()) return 0;
-    //     if (this._nativeWidth > 0) return this._nativeWidth;
-    //     if (JSB) {
-    //         this._nativeWidth = this._video.width();
-    //     } else {
-    //         let width = this._video.videoWidth;
-    //         this._nativeWidth = isNaN(width) ? 0 : width;
-    //     }
-    //     return this._nativeWidth;
-    // }
-    
-    // get height(): number {
-    //     if (!this._isInPlaybackState()) return 0;
-    //     if (this._nativeHeight > 0) return this._nativeHeight;
-    //     if (JSB) {
-    //         this._nativeHeight = this._video.height();
-    //     } else {
-    //         let height = this._video.videoHeight;
-    //         this._nativeHeight = isNaN(height) ? 0 : height;
-    //     }
-    //     return this._nativeHeight;
-    // }
-    
     // not accurate because native event is async, larger than actual percentage.
     get bufferPercentage(): number {
         if (!this._video) return 0;
@@ -276,6 +251,8 @@ export class MediaVideo extends Component {
 
     private _isInitialize: boolean = false;
 
+    private _isTransitioning: boolean = false;
+
     start() {
 
     }
@@ -286,13 +263,6 @@ export class MediaVideo extends Component {
         // 
         if(this._isInitialize && currentSource === source) {
             console.log(`[video] : ${source}`);
-            return;
-        }
-        
-        // 
-        if(this._isInitialize && currentSource !== source) {
-            console.log(`[video] : ${currentSource} -> ${source}`);
-            this._startSmoothTransition(source);
             return;
         }
         
@@ -309,147 +279,8 @@ export class MediaVideo extends Component {
         this.setRemoteSource(source);
     }
 
-    /**
-     * 
-     */
-    private _startSmoothTransition(source: string) {
-        this.source = source;
-        console.log(`[video] `);
-        this._isTransitioning = true;
-        this._keepLastFrame = true;
-        
-        // 
-        if (this._transitionTimeout) {
-            clearTimeout(this._transitionTimeout);
-            this._transitionTimeout = null;
-        }
-        
-        // 
-        if (this._video && this._currentState === VideoState.PLAYING) {
-            try {
-                if (JSB) {
-                    this._video.stop();
-                } else {
-                    this._video.pause();
-                }
-            } catch (e) {
-                console.warn('[video] :', e);
-            }
-        }
 
-        console.log(`[video] `);
-        
-        // 
-        this._currentState = VideoState.PREPARING;
-        
-        // 
-        this._transitionTimeout = setTimeout(() => {
-            this._cleanupVideoResourcesForTransition();
-        }, this.transitionDuration);
-    }
-
-    /**
-     * 
-     */
-    private _finishSmoothTransition() {
-        console.log(`[video] , ${this.source}`);
-        
-        // 
-        if (this._transitionTimeout) {
-            clearTimeout(this._transitionTimeout);
-            this._transitionTimeout = null;
-        }
-        
-        this._isTransitioning = false;
-        this._keepLastFrame = false;
-        
-        this._initialize();
-        this.finalSetRemoteSource(this.source);
-    }
-
-    /**
-     * 
-     */
-    private _cleanupVideoResourcesForTransition() {
-        if (!this._video) {
-            // 
-            this._finishSmoothTransition();
-            return;
-        }
-        
-        console.log(`[video] `);
-        
-        // 
-        this._currentState = VideoState.PREPARING;
-        this._targetState = VideoState.IDLE;
-        this._loaded = false;
-        this._seekTime = 0;
-        this._nativeDuration = 0;
-        this._nativeWidth = 0;
-        this._nativeHeight = 0;
-        
-        if (JSB) {
-            // 
-            try {
-                // 
-                if (typeof this._video.stop === 'function') {
-                    this._video.stop();
-                }
-                
-                // 
-                this.scheduleOnce(() => {
-                    try {
-                        // 
-                        if (this._video && typeof this._video.destroy === 'function') {
-                            this._video.destroy();
-                        }
-                    } catch (e) {
-                        console.error(`[video] :`, e);
-                    }
-                    
-                    // 
-                    this._video = null;
-                    this._isInitialize = false;
-                    
-                    console.log(`[video] `);
-                    
-                    // 
-                    this._finishSmoothTransition();
-                }, 0.1);
-                
-            } catch (e) {
-                console.error(`[video] :`, e);
-                // 
-                this._video = null;
-                this._isInitialize = false;
-                this._finishSmoothTransition();
-            }
-        } else {
-            // 
-            try {
-                this._video.pause();
-                this._video.currentTime = 0;
-                this._video.src = '';
-                this._video.load(); // 
-                
-                // 
-                this._video = null;
-                this._isInitialize = false;
-                
-                console.log(`[video] `);
-                
-                // 
-                this._finishSmoothTransition();
-            } catch (e) {
-                console.error(`[video] :`, e);
-                // 
-                this._video = null;
-                this._isInitialize = false;
-                this._finishSmoothTransition();
-            }
-        }
-    }
-
+    
     /**
      * 
      */
@@ -473,8 +304,9 @@ export class MediaVideo extends Component {
 
         try {
             // 
-            if (this._video && !this._isTransitioning) {
+            if (this._video) {
                 console.log('[video] ');
+                this.copyCurrentFrameToSprite();
                 this._cleanupVideoResources();
             }
             
@@ -500,23 +332,18 @@ export class MediaVideo extends Component {
      * initialize browser player, register video event handler
      */
      private _initializeBrowser(): void {
-        // @ts-ignore
-        this._video = this.VideoView._impl._video;
+        // VideoPlayervideo
+        if (!this.VideoView || !(this.VideoView as any)._impl) {
+            console.error('[video] VideoView  _impl ');
+            return;
+        }
+        
+        this._video = (this.VideoView as any)._impl._video;
         this._video.crossOrigin = 'anonymous';
         this._video.autoplay = false;
         this._video.loop = false;
         this._video.muted = false;
-        // this.textures = [
-        //     // @ts-ignore
-        //     new cc.renderer.Texture2D(cc.renderer.device, {
-        //         wrapS: gfx.WRAP_CLAMP,
-        //         wrapT: gfx.WRAP_CLAMP,
-        //         genMipmaps: false,
-        //         premultiplyAlpha: false,
-        //         flipY: false,
-        //         format: gfx.TEXTURE_FMT_RGBA8
-        //     })
-        // ];
+        
         this._video.addEventListener('loadedmetadata', () => this._onMetaLoaded());
         this._video.addEventListener('ended', () => this._onCompleted());
         this._loaded = false;
@@ -533,17 +360,6 @@ export class MediaVideo extends Component {
         this._video.addEventListener('canplay', onCanPlay);
         this._video.addEventListener('canplaythrough', onCanPlay);
         this._video.addEventListener('suspend', onCanPlay);
-
-        // @ts-ignore
-        // let gl = cc.renderer.device._gl;
-        // this.update = dt => {
-        //     if (this._isInPlaybackState()) {
-        //         gl.bindTexture(gl.TEXTURE_2D, this.textures[0]._glID);
-        //         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.impl);
-        //         // @ts-ignore
-        //         cc.renderer.device._restoreTexture(0);
-        //     }
-        // };
     }
 
     /**
@@ -679,12 +495,7 @@ export class MediaVideo extends Component {
         game.off(Game.EVENT_HIDE, this._onHide, this);
         
         // 
-        if (this._transitionTimeout) {
-            clearTimeout(this._transitionTimeout);
-            this._transitionTimeout = null;
-        }
         this._isTransitioning = false;
-        this._keepLastFrame = false;
         
         // 
         this.stop();
@@ -895,8 +706,7 @@ export class MediaVideo extends Component {
             texture.reset({
                 width: width,
                 height: height,
-                //@ts-ignore
-                format:  format ? format : JSB ?gfx.Format.R8: gfx.Format.RGB8
+                format: format ? format : JSB ? gfx.Format.R8 : gfx.Format.RGB8
             });
         } catch (error) {
             console.error('[video] :', error);
@@ -909,19 +719,19 @@ export class MediaVideo extends Component {
     }
 
     private _onReadyToPlay() {        
-        console.log('[video] _onReadyToPlay ');
+        
+        // tempSprite  video 
+        this._isTransitioning = false;
+        this.videoOpacity.opacity = 255;
+        this.tempSprite.node.active = false;
+
+        
         this._updatePixelFormat();
         this._currentState = VideoState.PREPARED;
         if (this._seekTime > 0.1) {
             this.currentTime = this._seekTime;
         }
         this._updateTexture();
-        
-        // 
-        if (this._isTransitioning) {
-            console.log('[video] ');
-            this._finishSmoothTransition();
-        }
         
         this.node.emit('ready', this);
         EventHandler.emitEvents(this.videoPlayerEvent, this, EventType.READY);
@@ -931,7 +741,6 @@ export class MediaVideo extends Component {
             console.log('[video] ');
             this.play();
         }
-        console.log('[video] _onReadyToPlay ');
     }
 
     private _onCompleted() {
@@ -1171,9 +980,23 @@ export class MediaVideo extends Component {
 
     
     public seek(time: number) {
+        if (!this._video) {
+            console.warn('[video] seek');
+            this._seekTime = time;
+            return;
+        }
+        
         this.pause();
         this._seekTime = time;
-        this._video.currentTime = time;
+        
+        if (this._isInPlaybackState()) {
+            if (JSB) {
+                this._video.seek(time);
+            } else {
+                this._video.currentTime = time;
+            }
+        }
+        
         this.resume();
     }
 
@@ -1193,23 +1016,6 @@ export class MediaVideo extends Component {
             return;
         }
         
-        // 
-        if (currentSource != "")
-        {
-            if (this._isInitialize  && currentSource !== source) {
-                console.log(`[video] setRemoteSource : ${currentSource} -> ${source}`);
-                this._startSmoothTransition(source);
-                return;
-            } else if (currentSource === source && this._currentState !== VideoState.PLAYING) {
-                // 
-                console.log(`[video] : ${source}, : ${this._currentState}`);
-            }
-        }
-
-        this.finalSetRemoteSource(source);
-    }
-
-    private finalSetRemoteSource(source: string) {
         // VideoPlayerremoteURL
         if (this.VideoView) {
             this.VideoView.remoteURL = source;
@@ -1221,21 +1027,7 @@ export class MediaVideo extends Component {
         this._updateVideoSource();
     }
 
-    /**
-     * 
-     * @param duration 
-     */
-    public setTransitionDuration(duration: number) {
-        this.transitionDuration = Math.max(50, Math.min(1000, duration)); // 50-1000ms
-        console.log(`[video] : ${this.transitionDuration}ms`);
-    }
 
-    /**
-     * 
-     */
-    public isTransitioning(): boolean {
-        return this._isTransitioning;
-    }
 
     /**
      * 
@@ -1243,14 +1035,6 @@ export class MediaVideo extends Component {
      */
     public dispose() {
         console.log(`[video] `);
-        
-        // 
-        if (this._transitionTimeout) {
-            clearTimeout(this._transitionTimeout);
-            this._transitionTimeout = null;
-        }
-        this._isTransitioning = false;
-        this._keepLastFrame = false;
         
         // 
         if (this._currentState === VideoState.PLAYING) {
@@ -1293,6 +1077,148 @@ export class MediaVideo extends Component {
         }
         
         console.log(`[video] `);
+    }
+
+    /**
+     * _texture0tempSprite
+     * _texture0_texture0
+     * @returns {boolean} 
+     */
+    public copyCurrentFrameToSprite(): boolean {
+        // 
+        if (!this.tempSprite) {
+            console.warn('[video] copy,tempSprite');
+            return false;
+        }
+        
+        if (!this._texture0 || !this._texture0.isValid) {
+            console.warn('[video] copy,_texture0');
+            return false;
+        }
+        
+        if (!this._isInPlaybackState()) {
+            console.warn('[video] copy,');
+            return false;
+        }
+
+        const transform = this.tempSprite.node.getComponent(UITransform)!;
+        transform.width = cc.winSize.width;
+        transform.height = cc.winSize.height;
+        this.tempSprite.node.active = true;
+        this._isTransitioning = true;
+
+        try {
+            console.log('[video] copy,tempSprite');
+            
+            // 
+            const copiedTexture = new Texture2D();
+            
+            // 
+            copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+            copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
+            copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+            
+            // 
+            copiedTexture.reset({
+                width: this._texture0.width,
+                height: this._texture0.height,
+                //@ts-ignore
+                format: JSB ? gfx.Format.R8 : gfx.Format.RGB8
+            });
+            
+            if (JSB) {
+                // buffer
+                this._copyTextureDataNative(copiedTexture);
+            } else {
+                // canvas
+                this._copyTextureDataBrowser(copiedTexture);
+            }
+            
+            // tempSpriteSpriteFrame
+            if (!this.tempSprite.spriteFrame) {
+                this.tempSprite.spriteFrame = new SpriteFrame();
+            }
+            
+            // tempSprite
+            this.tempSprite.spriteFrame.texture = copiedTexture;
+            
+            console.log('[video] tempSprite');
+            return true;
+            
+        } catch (error) {
+            console.error('[video] copy,tempSprite:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * 
+     * @param targetTexture 
+     */
+    private _copyTextureDataNative(targetTexture: Texture2D): void {
+        // directordevice
+        if (!director.root || !director.root.device) {
+            throw new Error('director.root  device ');
+        }
+        
+        const device = director.root.device;
+        const sourceTexture = this._texture0.getGFXTexture();
+        
+        if (!sourceTexture) {
+            throw new Error('GFX');
+        }
+        
+        // buffer
+        const textureSize = sourceTexture.size;
+        const tempBuffer = new Uint8Array(textureSize);
+        
+        // 
+        const copyRegion = new gfx.BufferTextureCopy();
+        copyRegion.texExtent.width = sourceTexture.width;
+        copyRegion.texExtent.height = sourceTexture.height;
+        copyRegion.texSubres.mipLevel = 0;
+        copyRegion.texSubres.baseArrayLayer = 0;
+        
+        // buffer
+        device.copyTextureToBuffers(sourceTexture, [tempBuffer], [copyRegion]);
+        
+        // buffer
+        targetTexture.uploadData(tempBuffer);
+    }
+    
+    /**
+     * 
+     * @param targetTexture 
+     */
+    private _copyTextureDataBrowser(targetTexture: Texture2D): void {
+        // _texture0video
+        if (!this._video) {
+            throw new Error('');
+        }
+        
+        // canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+            throw new Error('canvas');
+        }
+        
+        // canvas
+        canvas.width = this._video.videoWidth || this.width;
+        canvas.height = this._video.videoHeight || this.height;
+        
+        // canvas
+        ctx.drawImage(this._video, 0, 0, canvas.width, canvas.height);
+        
+        // ImageData
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // ImageData
+        targetTexture.uploadData(imageData.data);
+        
+        // canvas
+        canvas.remove();
     }
 }
 
