@@ -1132,6 +1132,10 @@ export class MediaVideo extends Component {
     private _copyFrameByPixelFormat(): boolean {
         // 
         const currentPixelFormat = JSB ? this._video.pixelFormat() : PixelFormat.RGB;
+        if (currentPixelFormat == PixelFormat.NONE || currentPixelFormat == PixelFormat.I420) {
+            console.warn(`[video] copy,:${currentPixelFormat}`);
+            return false;
+        }
         console.log(`[video] copy,: ${currentPixelFormat}`);
         
         if (JSB) {
