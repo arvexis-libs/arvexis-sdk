@@ -19,6 +19,7 @@ import { UITransform } from 'cc';
 import { UIOpacity } from 'cc';
 import { _decorator, Component, VideoClip, RenderableComponent, Texture2D, loader, EventHandler, game, Game, CCString, Material, Sprite, SpriteFrame, gfx, director, VideoPlayer, screen } from 'cc';
 import { JSB } from 'cc/env';
+import { error } from 'console';
 const { ccclass, property} = _decorator;
 export enum EventType {     //
     PREPARING = 1,      //
@@ -546,11 +547,19 @@ export class MediaVideo extends Component {
                 return;
             }
             
+            // 
+            if (!this._video || this._video.readyState === undefined || this._video.readyState < ReadyState.HAVE_METADATA) {
+                return;
+            }
+            
             try {
                 // 
                 if (this._texture0 && this._texture0.isValid && !this._isTransitioning) {
-                    this._texture0.uploadData(this._video);
-                    this._updateMaterial();
+                    // 
+                    if (this._video.videoWidth > 0 && this._video.videoHeight > 0) {
+                        this._texture0.uploadData(this._video);
+                        this._updateMaterial();
+                    }
                 }
             } catch (error) {
                 console.error('[video] update:', error);
@@ -697,19 +706,51 @@ export class MediaVideo extends Component {
             return;
         }
         
+        // 
+        if (width <= 0 || height <= 0) {
+            console.warn(`[video] : ${width}x${height}`);
+            return;
+        }
+        
+        // 
+        const maxDimension = 8192; // 
+        if (width > maxDimension || height > maxDimension) {
+            console.warn(`[video] : ${width}x${height}${maxDimension}x${maxDimension}`);
+            width = Math.min(width, maxDimension);
+            height = Math.min(height, maxDimension);
+        }
+        
         try {
             texture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
             texture.setMipFilter(Texture2D.Filter.LINEAR);
             texture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
             
-
+            // 
+            let textureFormat = format;
+            if (!textureFormat) {
+                textureFormat = JSB ? gfx.Format.R8 : gfx.Format.RGB8;
+            }
+            
             texture.reset({
                 width: width,
                 height: height,
-                format: format ? format : JSB ? gfx.Format.R8 : gfx.Format.RGB8
+                format: textureFormat as any
             });
+            
+            console.log(`[video] : ${width}x${height}, : ${textureFormat}`);
         } catch (error) {
             console.error('[video] :', error);
+            // 
+            try {
+                texture.reset({
+                    width: Math.min(width, 1024),
+                    height: Math.min(height, 1024),
+                    format: gfx.Format.RGB8 as any
+                });
+                console.log('[video] ');
+            } catch (fallbackError) {
+                console.error('[video] :', fallbackError);
+            }
         }
     }
 
@@ -803,20 +844,52 @@ export class MediaVideo extends Component {
             return;
         }
         
+        // 
+        if (!this._video || typeof this._video.getDatas !== 'function') {
+            console.warn('[video] ');
+            return;
+        }
+        
         try {
             let datas: any = this._video.getDatas();
             if (!datas || !datas.length) return;
 
             // 
+            for (let i = 0; i < datas.length; i++) {
+                if (!datas[i] || !(datas[i] instanceof Uint8Array || datas[i] instanceof Int8Array || 
+                    datas[i] instanceof Uint16Array || datas[i] instanceof Int16Array ||
+                    datas[i] instanceof Uint32Array || datas[i] instanceof Int32Array ||
+                    datas[i] instanceof Float32Array || datas[i] instanceof Float64Array)) {
+                    console.warn(`[video] ${i}`);
+                    continue;
+                }
+            }
+
+            // 
             // 
             if (datas.length > 0 && this._texture0 && this._texture0.isValid && !this._isTransitioning) {
-                this._texture0.uploadData(datas[0]);
+                try {
+                    this._texture0.uploadData(datas[0]);
+                } catch (error) {
+                    console.error('[video] texture0:', error);
+                    return; // 
+                }
             }
+            
             if (datas.length > 1 && this._texture1 && this._texture1.isValid && !this._isTransitioning) {
-                this._texture1.uploadData(datas[1]);
+                try {
+                    this._texture1.uploadData(datas[1]);
+                } catch (error) {
+                    console.error('[video] texture1:', error);
+                }
             }
+            
             if (datas.length > 2 && this._texture2 && this._texture2.isValid && !this._isTransitioning) {
-                this._texture2.uploadData(datas[2]);
+                try {
+                    this._texture2.uploadData(datas[2]);
+                } catch (error) {
+                    console.error('[video] texture2:', error);
+                }
             }
             
             // 
@@ -924,21 +997,27 @@ export class MediaVideo extends Component {
      * 
      */
     public stop() {
-        this._seekTime = 0;
-        if (this._isInPlaybackState() && this._currentState != VideoState.STOP) {
-            if (JSB) {
-                this._video.stop();
+        console.log(`[video] , : ${this._currentState}`);
+        try
+        {
+            this._seekTime = 0;
+            if (this._isInPlaybackState() && this._currentState != VideoState.STOP) {
+                if (JSB) {
+                    this._video.stop();
+                } else {
+                    this._video.pause();
+                    this._video.currentTime = 0;
+                }
+    
+                this.node.emit('stopped', this);
+                this._currentState = VideoState.STOP;
+                this._targetState = VideoState.STOP;
+                EventHandler.emitEvents(this.videoPlayerEvent, this, EventType.STOPPED);
             } else {
-                this._video.pause();
-                this._video.currentTime = 0;
+                this._targetState = VideoState.STOP;
             }
-
-            this.node.emit('stopped', this);
-            this._currentState = VideoState.STOP;
-            this._targetState = VideoState.STOP;
-            EventHandler.emitEvents(this.videoPlayerEvent, this, EventType.STOPPED);
-        } else {
-            this._targetState = VideoState.STOP;
+        } catch (error) {
+            console.error('[video] :', error);
         }
     }
 
@@ -1005,6 +1084,12 @@ export class MediaVideo extends Component {
     public setRemoteSource(source: string) {
         console.log(`[video] setRemoteSource: ${source}, : ${this.source}, : ${this._currentState}`);
         
+        // 
+        if (!source || typeof source !== 'string') {
+            console.error('[video] setRemoteSource: ');
+            return;
+        }
+        
         const currentSource = this.source; 
         
         // 
@@ -1014,15 +1099,34 @@ export class MediaVideo extends Component {
             return;
         }
         
-        // VideoPlayerremoteURL
-        if (this.VideoView) {
-            this.VideoView.remoteURL = source;
+        // 
+        this._isTransitioning = true;
+        
+        try {
+            // VideoPlayerremoteURL
+            if (this.VideoView) {
+                this.VideoView.remoteURL = source;
+            }
+            
+            this.clip = null!;
+            this.source = source; // setter
+            
+            // 
+            this.scheduleOnce(() => {
+                try {
+                    this._updateVideoSource();
+                } catch (error) {
+                    console.error('[video] :', error);
+                    // 
+                    this._isTransitioning = false;
+                }
+            }, 0.1); // 0.1
+            
+        } catch (error) {
+            console.error('[video] setRemoteSource:', error);
+            // 
+            this._isTransitioning = false;
         }
-        
-        this.clip = null!;
-        this.source = source; // setter
-        
-        this._updateVideoSource();
     }
 
 
@@ -1364,6 +1468,16 @@ export class MediaVideo extends Component {
             throw new Error('director.root  device ');
         }
         
+        // 
+        if (!targetTexture || !targetTexture.isValid) {
+            throw new Error('');
+        }
+        
+        // 
+        if (!this._texture0 || !this._texture0.isValid) {
+            throw new Error('');
+        }
+        
         const device = director.root.device;
         const sourceTexture = this._texture0.getGFXTexture();
         
@@ -1371,8 +1485,23 @@ export class MediaVideo extends Component {
             throw new Error('GFX');
         }
         
+        // 
+        if (sourceTexture.width <= 0 || sourceTexture.height <= 0) {
+            throw new Error('');
+        }
+        
+        // 
+        const maxTextureSize = 4096; // 
+        if (sourceTexture.width > maxTextureSize || sourceTexture.height > maxTextureSize) {
+            throw new Error(`: ${sourceTexture.width}x${sourceTexture.height}`);
+        }
+        
         // buffer
         const textureSize = sourceTexture.size;
+        if (textureSize <= 0 || textureSize > 100 * 1024 * 1024) { // 100MB
+            throw new Error(`: ${textureSize}`);
+        }
+        
         const tempBuffer = new Uint8Array(textureSize);
         
         // 
@@ -1382,11 +1511,21 @@ export class MediaVideo extends Component {
         copyRegion.texSubres.mipLevel = 0;
         copyRegion.texSubres.baseArrayLayer = 0;
         
-        // buffer
-        device.copyTextureToBuffers(sourceTexture, [tempBuffer], [copyRegion]);
-        
-        // buffer
-        targetTexture.uploadData(tempBuffer);
+        try {
+            // buffer
+            device.copyTextureToBuffers(sourceTexture, [tempBuffer], [copyRegion]);
+            
+            // 
+            if (targetTexture && targetTexture.isValid) {
+                // buffer
+                targetTexture.uploadData(tempBuffer);
+            } else {
+                console.warn('[video] ');
+            }
+        } catch (error) {
+            console.error('[video] :', error);
+            throw error;
+        }
     }
     
     /**
@@ -1422,6 +1561,67 @@ export class MediaVideo extends Component {
         
         // canvas
         canvas.remove();
+    }
+
+    /**
+     * 
+     * @returns {boolean} 
+     */
+    private _isVideoStateSafe(): boolean {
+        // 
+        if (!this.node || !this.node.isValid) {
+            console.warn('[video] ');
+            return false;
+        }
+        
+        // 
+        if (this._isTransitioning) {
+            console.warn('[video] ');
+            return false;
+        }
+        
+        // 
+        if (!this._video) {
+            console.warn('[video] ');
+            return false;
+        }
+        
+        // 
+        if (!this._texture0 || !this._texture0.isValid) {
+            console.warn('[video] ');
+            return false;
+        }
+        
+        // 
+        if (this._currentState === VideoState.IDLE || 
+            this._currentState === VideoState.ERROR ||
+            this._currentState === VideoState.PREPARING) {
+            console.warn(`[video] : ${this._currentState}`);
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * 
+     * @param operation 
+     * @returns {boolean} 
+     */
+    private _safeTextureOperation(operation: () => void): boolean {
+        if (!this._isVideoStateSafe()) {
+            return false;
+        }
+        
+        try {
+            operation();
+            return true;
+        } catch (error) {
+            console.error('[video] :', error);
+            // 
+            this._currentState = VideoState.ERROR;
+            return false;
+        }
     }
 }
 
