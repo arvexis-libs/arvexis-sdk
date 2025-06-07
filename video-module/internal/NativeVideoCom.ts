@@ -94,12 +94,6 @@ export class NativeVideoCom extends VideoCom {
                 console.log('[video] ');
                 this.uiOpacity.opacity = 0;
                 break;
-            case EventType.COMPLETED:
-                console.log('[video] ');
-                this.uiOpacity.opacity = 0;
-                UIMainVideoComp.getInstance().fadeoutVideo();
-                UIMainVideoComp.getInstance().Close();
-                break;
         }
     }
 
