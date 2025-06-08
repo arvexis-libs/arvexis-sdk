@@ -775,11 +775,12 @@ export class MediaVideo extends Component {
             console.log('[video] ');
             this.play();
         }
+    }
 
-        // tempSprite  video 
-        this._isTransitioning = false;
-        this.videoOpacity.opacity = 255;
-        this.tempSprite.node.active = false;
+    public setTempSpriteActive(active: boolean) {
+        this.tempSprite.node.active = active;
+        this.videoOpacity.opacity = active ? 0 : 255;
+        this._isTransitioning = active;
     }
 
     private _onCompleted() {
@@ -1206,8 +1207,7 @@ export class MediaVideo extends Component {
         const transform = this.tempSprite.node.getComponent(UITransform)!;
         transform.width = cc.winSize.width;
         transform.height = cc.winSize.height;
-        this.tempSprite.node.active = true;
-        this._isTransitioning = true;
+        this.setTempSpriteActive(true);
 
         try {
             console.log('[video] copy,tempSprite');
