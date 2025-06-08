@@ -708,6 +708,11 @@ export class MediaVideo extends Component {
             console.warn('[video] ');
             return;
         }
+        // width,height
+        if (texture.width == width && texture.height == height) {
+            console.log(`[video] : ${width}x${height}`);
+            return;
+        }
         
         // 
         if (width <= 0 || height <= 0) {
