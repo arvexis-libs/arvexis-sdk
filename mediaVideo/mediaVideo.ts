@@ -7,12 +7,15 @@
  * 2.  tryInitializeRemote()  setRemoteSource()
  * 3.  setRemoteSource()
  * 4.  dispose() 
+ * 5.  copyCurrentFrameToSprite()  tempSprite
+ * 6.  copyRenderToTempSpriteAndActivate() 
  * 
  * 
  * -  setRemoteSource 
  * -  onDisable 
  * -  dispose() 
  * - 
+ * - copyCurrentFrameToSprite() 
  */
 
 import { UITransform } from 'cc';
@@ -775,11 +778,44 @@ export class MediaVideo extends Component {
             console.log('[video] ');
             this.play();
         }
+    }
 
-        // tempSprite  video 
-        this._isTransitioning = false;
-        this.videoOpacity.opacity = 255;
-        this.tempSprite.node.active = false;
+    public setTempSpriteActive(active: boolean) {
+        if (this.tempSprite) {
+            this.tempSprite.node.active = active;
+        }
+        if (this.videoOpacity) {
+            this.videoOpacity.opacity = active ? 0 : 255;
+        }
+        this._isTransitioning = active;
+    }
+
+    /**
+     * rendertempSprite
+     * 
+     * @returns {boolean} 
+     */
+    public copyRenderToTempSpriteAndActivate(): boolean {
+        // 
+        const copySuccess = this.copyCurrentFrameToSprite();
+        if (!copySuccess) {
+            console.warn('[video] ');
+            return false;
+        }
+        
+        // 
+        this.setTempSpriteActive(true);
+        
+                 console.log('[video] ');
+         return true;
+     }
+
+    /**
+     * tempSprite
+     */
+    public deactivateTempSprite(): void {
+        this.setTempSpriteActive(false);
+        console.log('[video] tempSprite');
     }
 
     private _onCompleted() {
@@ -1182,446 +1218,141 @@ export class MediaVideo extends Component {
     }
 
     /**
-     * _texture0tempSprite
-     * _texture0_texture0
+     * rendertempSprite
+     * 
      * @returns {boolean} 
      */
     public copyCurrentFrameToSprite(): boolean {
         // 
         if (!this.tempSprite) {
-            console.warn('[video] copy,tempSprite');
+            console.warn('[video] tempSprite');
+            return false;
+        }
+        
+        if (!this.render) {
+            console.warn('[video] render');
             return false;
         }
         
         if (!this._texture0 || !this._texture0.isValid) {
-            console.warn('[video] copy,_texture0');
+            console.warn('[video] ');
             return false;
         }
         
-        if (!this._isInPlaybackState()) {
-            console.warn('[video] copy,');
-            return false;
-        }
-
-        const transform = this.tempSprite.node.getComponent(UITransform)!;
-        transform.width = cc.winSize.width;
-        transform.height = cc.winSize.height;
-        this.tempSprite.node.active = true;
-        this._isTransitioning = true;
-
         try {
-            console.log('[video] copy,tempSprite');
-            
             // 
-            const success = this._copyFrameByPixelFormat();
-            
-            if (success) {
-                console.log('[video] tempSprite');
-                return true;
-            } else {
-                console.warn('[video] copy,');
+            const copiedTexture = this._createTextureCopy(this._texture0);
+            if (!copiedTexture) {
+                console.warn('[video] ');
                 return false;
             }
             
-        } catch (error) {
-            console.error('[video] copy,tempSprite:', error);
-            return false;
-        }
-    }
-
-    /**
-     * 
-     * @returns {boolean} 
-     */
-    private _copyFrameByPixelFormat(): boolean {
-        // 
-        const currentPixelFormat = JSB ? this._video.pixelFormat() : PixelFormat.RGB;
-        if (currentPixelFormat == PixelFormat.NONE || currentPixelFormat == PixelFormat.I420) {
-            console.warn(`[video] copy,:${currentPixelFormat}`);
-            return false;
-        }
-        console.log(`[video] copy,: ${currentPixelFormat}`);
-        
-        if (JSB) {
-            // 
-            return this._copyFrameNativeByFormat(currentPixelFormat);
-        } else {
-            // video
-            return this._copyFrameBrowser();
-        }
-    }
-
-    /**
-     * 
-     * @param pixelFormat 
-     * @returns {boolean} 
-     */
-    private _copyFrameNativeByFormat(pixelFormat: PixelFormat): boolean {
-        try {
-            switch (pixelFormat) {
-                case PixelFormat.RGB:
-                case PixelFormat.RGBA:
-                    return this._copySimpleFormat(pixelFormat);
-                
-                case PixelFormat.I420:
-                    return this._copyYUVFormat('I420');
-                
-                case PixelFormat.NV12:
-                    return this._copyYUVFormat('NV12');
-                
-                case PixelFormat.NV21:
-                    return this._copyYUVFormat('NV21');
-                
-                default:
-                    console.warn(`[video] copy,: ${pixelFormat}`);
-                    // RGB
-                    return this._copySimpleFormat(PixelFormat.RGB);
-            }
-        } catch (error) {
-            console.error('[video] copy,:', error);
-            return false;
-        }
-    }
-
-    /**
-     * RGB/RGBA
-     * @param pixelFormat 
-     * @returns {boolean} 
-     */
-    private _copySimpleFormat(pixelFormat: PixelFormat): boolean {
-        // 
-        const copiedTexture = new Texture2D();
-        
-        // 
-        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
-        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
-        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
-        
-        // 
-        let textureFormat: gfx.Format;
-        if (pixelFormat === PixelFormat.RGBA) {
-            textureFormat = gfx.Format.RGBA8;
-        } else {
-            textureFormat = JSB ? gfx.Format.R8 : gfx.Format.RGB8;
-        }
-        
-        // 
-        copiedTexture.reset({
-            width: this._texture0.width,
-            height: this._texture0.height,
-            format: textureFormat as any
-        });
-        
-        // 
-        this._copyTextureDataNative(copiedTexture);
-        
-        // tempSpriteSpriteFrame
-        if (!this.tempSprite.spriteFrame) {
-            this.tempSprite.spriteFrame = new SpriteFrame();
-        }
-        
-        // tempSprite
-        this.tempSprite.spriteFrame.texture = copiedTexture;
-        
-        // 
-        this._setTempSpriteMaterial(pixelFormat);
-        
-        return true;
-    }
-
-    /**
-     * YUVI420/NV12/NV21
-     * @param formatName 
-     * @returns {boolean} 
-     */
-    private _copyYUVFormat(formatName: string): boolean {
-        console.log(`[video] copy,YUV: ${formatName}`);
-        
-        // YUVRGB
-        // RT
-        const copiedTexture = new Texture2D();
-        
-        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
-        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
-        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
-        
-        // YUVRGBRGBA
-        copiedTexture.reset({
-            width: this._texture0.width,
-            height: this._texture0.height,
-            format: gfx.Format.RGBA8 as any
-        });
-        
-        // YUVGPU
-        // Y
-        // YUVRGB shader
-        this._copyTextureDataNative(copiedTexture);
-        
-        // tempSpriteSpriteFrame
-        if (!this.tempSprite.spriteFrame) {
-            this.tempSprite.spriteFrame = new SpriteFrame();
-        }
-        
-        this.tempSprite.spriteFrame.texture = copiedTexture;
-        
-        // RGB
-        this._setTempSpriteMaterial(PixelFormat.RGBA);
-        
-        return true;
-    }
-
-    /**
-     * 
-     * @returns {boolean} 
-     */
-    private _copyFrameBrowser(): boolean {
-        // _texture0video
-        if (!this._video) {
-            throw new Error('');
-        }
-        
-        // 
-        const copiedTexture = new Texture2D();
-        
-        // 
-        copiedTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
-        copiedTexture.setMipFilter(Texture2D.Filter.LINEAR);
-        copiedTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
-        
-        // RGB
-        copiedTexture.reset({
-            width: this._video.videoWidth || this.width,
-            height: this._video.videoHeight || this.height,
-            format: gfx.Format.RGB8 as any
-        });
-        
-        // 
-        this._copyTextureDataBrowser(copiedTexture);
-        
-        // tempSpriteSpriteFrame
-        if (!this.tempSprite.spriteFrame) {
-            this.tempSprite.spriteFrame = new SpriteFrame();
-        }
-        
-        // tempSprite
-        this.tempSprite.spriteFrame.texture = copiedTexture;
-        
-        // RGB
-        this._setTempSpriteMaterial(PixelFormat.RGB);
-        
-        return true;
-    }
-
-    /**
-     * tempSprite
-     * @param pixelFormat 
-     */
-    private _setTempSpriteMaterial(pixelFormat: PixelFormat): void {
-        // tempSpriteSpriteindex=1
-        const materialIndex = 1;
-        
-        try {
-            switch (pixelFormat) {
-                case PixelFormat.RGB:
-                    if (this.rgb && this.rgb[materialIndex]) {
-                        this.tempSprite.setMaterial(this.rgb[materialIndex], 0);
-                    }
-                    break;
-                case PixelFormat.RGBA:
-                    if (this.rgba && this.rgba[materialIndex]) {
-                        this.tempSprite.setMaterial(this.rgba[materialIndex], 0);
-                    }
-                    break;
-                case PixelFormat.I420:
-                    if (this.i420 && this.i420[materialIndex]) {
-                        this.tempSprite.setMaterial(this.i420[materialIndex], 0);
-                    }
-                    break;
-                case PixelFormat.NV12:
-                    if (this.nv12 && this.nv12[materialIndex]) {
-                        this.tempSprite.setMaterial(this.nv12[materialIndex], 0);
-                    }
-                    break;
-                case PixelFormat.NV21:
-                    if (this.nv21 && this.nv21[materialIndex]) {
-                        this.tempSprite.setMaterial(this.nv21[materialIndex], 0);
-                    }
-                    break;
-                default:
-                    console.warn(`[video] copy,: ${pixelFormat}`);
-                    break;
+            // tempSpriteSpriteFrame
+            if (!this.tempSprite.spriteFrame) {
+                this.tempSprite.spriteFrame = new SpriteFrame();
             }
             
-            console.log(`[video] copy,tempSprite: ${pixelFormat}`);
-        } catch (error) {
-            console.error('[video] copy,tempSprite:', error);
-        }
-    }
-    
-    /**
-     * 
-     * @param targetTexture 
-     */
-    private _copyTextureDataNative(targetTexture: Texture2D): void {
-        // directordevice
-        if (!director.root || !director.root.device) {
-            throw new Error('director.root  device ');
-        }
-        
-        // 
-        if (!targetTexture || !targetTexture.isValid) {
-            throw new Error('');
-        }
-        
-        // 
-        if (!this._texture0 || !this._texture0.isValid) {
-            throw new Error('');
-        }
-        
-        const device = director.root.device;
-        const sourceTexture = this._texture0.getGFXTexture();
-        
-        if (!sourceTexture) {
-            throw new Error('GFX');
-        }
-        
-        // 
-        if (sourceTexture.width <= 0 || sourceTexture.height <= 0) {
-            throw new Error('');
-        }
-        
-        // 
-        const maxTextureSize = 4096; // 
-        if (sourceTexture.width > maxTextureSize || sourceTexture.height > maxTextureSize) {
-            throw new Error(`: ${sourceTexture.width}x${sourceTexture.height}`);
-        }
-        
-        // buffer
-        const textureSize = sourceTexture.size;
-        if (textureSize <= 0 || textureSize > 100 * 1024 * 1024) { // 100MB
-            throw new Error(`: ${textureSize}`);
-        }
-        
-        const tempBuffer = new Uint8Array(textureSize);
-        
-        // 
-        const copyRegion = new gfx.BufferTextureCopy();
-        copyRegion.texExtent.width = sourceTexture.width;
-        copyRegion.texExtent.height = sourceTexture.height;
-        copyRegion.texSubres.mipLevel = 0;
-        copyRegion.texSubres.baseArrayLayer = 0;
-        
-        try {
-            // buffer
-            device.copyTextureToBuffers(sourceTexture, [tempBuffer], [copyRegion]);
+            // SpriteFrame
+            this.tempSprite.spriteFrame.texture = copiedTexture;
             
-            // 
-            if (targetTexture && targetTexture.isValid) {
-                // buffer
-                targetTexture.uploadData(tempBuffer);
-            } else {
-                console.warn('[video] ');
+            // tempSprite
+            const transform = this.tempSprite.node.getComponent(UITransform)!;
+            if (transform) {
+                transform.width = copiedTexture.width;
+                transform.height = copiedTexture.height;
             }
-        } catch (error) {
-            console.error('[video] :', error);
-            throw error;
-        }
-    }
-    
-    /**
-     * 
-     * @param targetTexture 
-     */
-    private _copyTextureDataBrowser(targetTexture: Texture2D): void {
-        // _texture0video
-        if (!this._video) {
-            throw new Error('');
-        }
-        
-        // canvas
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        if (!ctx) {
-            throw new Error('canvas');
-        }
-        
-        // canvas
-        canvas.width = this._video.videoWidth || this.width;
-        canvas.height = this._video.videoHeight || this.height;
-        
-        // canvas
-        ctx.drawImage(this._video, 0, 0, canvas.width, canvas.height);
-        
-        // ImageData
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
-        // ImageData
-        targetTexture.uploadData(imageData.data);
-        
-        // canvas
-        canvas.remove();
-    }
-
-    /**
-     * 
-     * @returns {boolean} 
-     */
-    private _isVideoStateSafe(): boolean {
-        // 
-        if (!this.node || !this.node.isValid) {
-            console.warn('[video] ');
-            return false;
-        }
-        
-        // 
-        if (this._isTransitioning) {
-            console.warn('[video] ');
-            return false;
-        }
-        
-        // 
-        if (!this._video) {
-            console.warn('[video] ');
-            return false;
-        }
-        
-        // 
-        if (!this._texture0 || !this._texture0.isValid) {
-            console.warn('[video] ');
-            return false;
-        }
-        
-        // 
-        if (this._currentState === VideoState.IDLE || 
-            this._currentState === VideoState.ERROR ||
-            this._currentState === VideoState.PREPARING) {
-            console.warn(`[video] : ${this._currentState}`);
-            return false;
-        }
-        
-        return true;
-    }
-    
-    /**
-     * 
-     * @param operation 
-     * @returns {boolean} 
-     */
-    private _safeTextureOperation(operation: () => void): boolean {
-        if (!this._isVideoStateSafe()) {
-            return false;
-        }
-        
-        try {
-            operation();
+            
+            console.log(`[video] tempSprite: ${copiedTexture.width}x${copiedTexture.height}`);
             return true;
+            
         } catch (error) {
-            console.error('[video] :', error);
-            // 
-            this._currentState = VideoState.ERROR;
+            console.error('[video] tempSprite:', error);
             return false;
         }
     }
+
+    /**
+     * 
+     * @param sourceTexture 
+     * @returns {Texture2D | null} null
+     */
+    private _createTextureCopy(sourceTexture: Texture2D): Texture2D | null {
+        if (!sourceTexture || !sourceTexture.isValid) {
+            console.warn('[video] ');
+            return null;
+        }
+        
+        try {
+            // 
+            const newTexture = new Texture2D();
+            
+                         // 
+             newTexture.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+             newTexture.setMipFilter(Texture2D.Filter.LINEAR);
+             newTexture.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+            
+            // 
+            newTexture.reset({
+                width: sourceTexture.width,
+                height: sourceTexture.height,
+                format: sourceTexture.getPixelFormat() as any
+            });
+            
+            // canvas
+            if (!JSB && this._video && this._video instanceof HTMLVideoElement) {
+                // canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    canvas.width = sourceTexture.width;
+                    canvas.height = sourceTexture.height;
+                    
+                    // canvas
+                    ctx.drawImage(this._video, 0, 0, canvas.width, canvas.height);
+                    
+                    // canvas
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    newTexture.uploadData(imageData.data);
+                    
+                    console.log(`[video] canvas: ${canvas.width}x${canvas.height}`);
+                    return newTexture;
+                }
+            }
+            
+            // canvasGPU
+            if (JSB && sourceTexture.getGFXTexture && director.root && director.root.device) {
+                try {
+                    const gfxTexture = sourceTexture.getGFXTexture();
+                    if (gfxTexture) {
+                        // 
+                        this._copyTextureToTexture2D(newTexture, gfxTexture);
+                        console.log(`[video] GFX: ${sourceTexture.width}x${sourceTexture.height}`);
+                        return newTexture;
+                    }
+                } catch (gfxError) {
+                    console.warn('[video] GFX:', gfxError);
+                }
+            }
+            
+            // 
+            console.warn('[video] ');
+            const blackData = new Uint8Array(sourceTexture.width * sourceTexture.height * 4);
+            //  (RGBA: 0,0,0,255)
+            for (let i = 0; i < blackData.length; i += 4) {
+                blackData[i] = 0;     // R
+                blackData[i + 1] = 0; // G  
+                blackData[i + 2] = 0; // B
+                blackData[i + 3] = 255; // A
+            }
+            newTexture.uploadData(blackData);
+            
+            return newTexture;
+            
+        } catch (error) {
+            console.error('[video] :', error);
+            return null;
+        }
+    }
+
 }
 
