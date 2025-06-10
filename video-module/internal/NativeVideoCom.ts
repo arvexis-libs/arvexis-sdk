@@ -36,7 +36,6 @@ export class NativeVideoCom extends VideoCom {
 
     protected onLoad(): void {
         this.mPosterWidgetHigh = true;
-        this.fixPosterSprite();
     }
 
 
@@ -90,6 +89,7 @@ export class NativeVideoCom extends VideoCom {
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
                 this.mediaVideo.setTempSpriteActive(false);
+                UIMainVideoComp.getInstance().onVideoPlayStart(this.mParam);
                 break;
             case EventType.ERROR:
                 console.log('[video] ');
@@ -136,22 +136,6 @@ export class NativeVideoCom extends VideoCom {
 
     update(deltaTime: number) {
         
-    }
-
-    fixPosterSprite(){
-        // if(this.mPosterWidgetHigh){
-        //     const screenW = oops.gui.root.w;
-        //     const screenH = oops.gui.root.h;
-
-        //     console.log("windowSize ==== " + screenW + " " + screenH);
-        //     let atio = screenH / screenW;
-        //     let scale = Math.abs(atio - 16/9) + 1;
-        //     console.log("scale ==== " + scale);
-        //     this.videoSprite.node.scale = new Vec3(scale, scale, scale);
-        // }
-        // else{
-        //     this.videoSprite.node.scale = Vec3.ONE;
-        // }
     }
 
     protected onDestroy(): void {
