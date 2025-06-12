@@ -3,22 +3,22 @@ import { VideoCom } from '../VideoCom';
 import { EVideoType, IVideoParam } from '../VideoEnum';
 import { UITransform } from 'cc';
 import { VideoClip } from 'cc';
-import { MediaVideo } from '../../mediaVideo/mediaVideo';
 import { EventHandler } from 'cc';
 import { UIOpacity } from 'cc';
 import { EventType, getEventName } from '../../mediaVideo/mediaVideoBase';
 import { UIMainVideoComp } from '../../../game/UIMainVideo/UIMainVideoComp';
+import { MediaVideoBroswer } from '../../mediaVideo/mediaVideoBroswer';
 const { ccclass, property } = _decorator;
 
-@ccclass('NativeVideoCom')
-export class NativeVideoCom extends VideoCom {
+@ccclass('BroswerVideoCom')
+export class BroswerVideoCom extends VideoCom {
 
 
     @property(VideoPlayer)
     mVideoPlayer:VideoPlayer = null!
 
-    @property(MediaVideo)
-    mediaVideo: MediaVideo = null!;
+    @property(MediaVideoBroswer)
+    mediaVideo: MediaVideoBroswer = null!;
 
     @property(UIOpacity)
     uiOpacity: UIOpacity = null!;
@@ -50,16 +50,22 @@ export class NativeVideoCom extends VideoCom {
             })
         }
         else{
-            console.log(`[video] , src: ${param.src}`);
             // VideoPlayerremoteURL
-            this.mVideoPlayer.remoteURL = param.src;
             this.mediaVideo.tryInitializeRemote(param.src);
+            this.mediaVideo.setRemoteSource(param.src);
         }
         this.mediaVideo.loop = param.loop;
+        UIMainVideoComp.getInstance().fadeinVideo();
     }
 
     onEventHandler(event: EventHandler, eventType: EventType){
-        console.log(`[video] NativeVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
+        console.log(`[video] BroswerVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
+        
+        // 
+        if (this.mediaVideo) {
+            this.mediaVideo.debugVideoState();
+        }
+        
         switch(eventType){
             case EventType.PREPARING:
                 console.log('[video] ...');
@@ -70,6 +76,8 @@ export class NativeVideoCom extends VideoCom {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
+                // LOADED
+                console.log('[video] LOADEDmediaVideo.play()');
                 this.mediaVideo.play();
                 break;
             case EventType.STOPPED:
@@ -83,7 +91,6 @@ export class NativeVideoCom extends VideoCom {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
-                this.mediaVideo.setTempSpriteActive(false);
                 UIMainVideoComp.getInstance().onVideoPlayStart(this.mParam);
                 break;
             case EventType.ERROR:
@@ -135,21 +142,21 @@ export class NativeVideoCom extends VideoCom {
 
     protected onDestroy(): void {
         super.onDestroy();
-        console.log('[video] NativeVideoCom onDestroy ');
+        console.log('[video] BroswerVideoCom onDestroy ');
         
         // 
         if (this.mediaVideo) {
             this.mediaVideo.stop();
-            // 
-            this.mediaVideo.dispose();
+            // MediaVideoBroswerdispose
         }
         
-        console.log('[video] NativeVideoCom onDestroy ');
+        console.log('[video] BroswerVideoCom onDestroy ');
     }
 
 
     seek(time: number): void {
-        this.mediaVideo.seek(time);
+        // MediaVideoBroswerseekcurrentTime
+        this.mediaVideo.currentTime = time;
     }
     
     getDuration(): number{
