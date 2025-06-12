@@ -553,25 +553,8 @@ export class MediaVideoBroswer extends Component {
 
     private _isInPlaybackState() {
         const result = !!this._video && this._currentState != VideoState.IDLE && this._currentState != VideoState.PREPARING && this._currentState != VideoState.ERROR;
-        console.log(`[video] _isInPlaybackState: video=${!!this._video}, currentState=${this._currentState}, result=${result}`);
+        // console.log(`[video] _isInPlaybackState: video=${!!this._video}, currentState=${this._currentState}, result=${result}`);
         return result;
-    }
-
-    /**
-     * 
-     */
-    public debugVideoState() {
-        console.log(`[video] :`);
-        console.log(`  - : ${!!this._video}`);
-        console.log(`  - : ${this._currentState}`);
-        console.log(`  - : ${this._targetState}`);
-        console.log(`  - : ${this._loaded}`);
-        console.log(`  - : ${this._isInPlaybackState()}`);
-        if (this._video) {
-            console.log(`  - readyState: ${this._video.readyState}`);
-            console.log(`  - paused: ${this._video.paused}`);
-            console.log(`  - ended: ${this._video.ended}`);
-        }
     }
 
     public setRemoteSource(source: string) {

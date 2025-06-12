@@ -60,12 +60,6 @@ export class BroswerVideoCom extends VideoCom {
 
     onEventHandler(event: EventHandler, eventType: EventType){
         console.log(`[video] BroswerVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
-        
-        // 
-        if (this.mediaVideo) {
-            this.mediaVideo.debugVideoState();
-        }
-        
         switch(eventType){
             case EventType.PREPARING:
                 console.log('[video] ...');
