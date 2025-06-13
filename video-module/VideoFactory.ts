@@ -26,7 +26,11 @@ export class VideoFactory{
         {
             return ViewUtil.createPrefabNode("common/video/WeChatVideo", "resources");
         }
-        else if(CC_EDITOR || sys.isNative)
+        else if(CC_EDITOR || sys.isBrowser)
+        {
+            return ViewUtil.createPrefabNode("common/video/BroswerVideo", "resources");
+        }
+        else if(sys.isNative)
         {
             console.log("sys.platform = " + sys.platform);
             return ViewUtil.createPrefabNode("common/video/NativeVideo", "resources");
