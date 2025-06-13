@@ -1,24 +1,29 @@
-import { _decorator, VideoPlayer } from 'cc';
+import { _decorator, Component, Node } from 'cc';
 import { VideoCom } from '../VideoCom';
+import { Sprite } from 'cc';
+import { VideoPlayer } from 'cc';
 import { EVideoType, IVideoParam } from '../VideoEnum';
+import { SpriteFrame } from 'cc';
+import { screen } from 'cc';
 import { UITransform } from 'cc';
+import { Vec3 } from 'cc';
+import { oops } from 'db://oops-framework/core/Oops';
 import { VideoClip } from 'cc';
+import { EventType, getEventName, MediaVideo } from '../../mediaVideo/mediaVideo';
+import { UIMainVideoComp } from '../../../game/UIMainVideo/UIMainVideoComp';
 import { EventHandler } from 'cc';
 import { UIOpacity } from 'cc';
-import { EventType, getEventName } from '../../mediaVideo/mediaVideoBase';
-import { UIMainVideoComp } from '../../../game/UIMainVideo/UIMainVideoComp';
-import { MediaVideoBroswer } from '../../mediaVideo/mediaVideoBroswer';
 const { ccclass, property } = _decorator;
 
-@ccclass('BroswerVideoCom')
-export class BroswerVideoCom extends VideoCom {
+@ccclass('NativeVideoCom')
+export class NativeVideoCom extends VideoCom {
 
 
     @property(VideoPlayer)
     mVideoPlayer:VideoPlayer = null!
 
-    @property(MediaVideoBroswer)
-    mediaVideo: MediaVideoBroswer = null!;
+    @property(MediaVideo)
+    mediaVideo: MediaVideo = null!;
 
     @property(UIOpacity)
     uiOpacity: UIOpacity = null!;
@@ -50,16 +55,16 @@ export class BroswerVideoCom extends VideoCom {
             })
         }
         else{
+            console.log(`[video] , src: ${param.src}`);
             // VideoPlayerremoteURL
+            this.mVideoPlayer.remoteURL = param.src;
             this.mediaVideo.tryInitializeRemote(param.src);
-            this.mediaVideo.setRemoteSource(param.src);
         }
         this.mediaVideo.loop = param.loop;
-        UIMainVideoComp.getInstance().fadeinVideo();
     }
 
     onEventHandler(event: EventHandler, eventType: EventType){
-        console.log(`[video] BroswerVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
+        console.log(`[video] NativeVideoCom onEventHandle, eventType:${getEventName(eventType)}. :${this.uiOpacity.opacity}`);
         switch(eventType){
             case EventType.PREPARING:
                 console.log('[video] ...');
@@ -70,8 +75,6 @@ export class BroswerVideoCom extends VideoCom {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
-                // LOADED
-                console.log('[video] LOADEDmediaVideo.play()');
                 this.mediaVideo.play();
                 break;
             case EventType.STOPPED:
@@ -85,6 +88,7 @@ export class BroswerVideoCom extends VideoCom {
                     this.uiOpacity.opacity = 255;
                     UIMainVideoComp.getInstance().fadeinVideo();
                 }
+                this.mediaVideo.setTempSpriteActive(false);
                 UIMainVideoComp.getInstance().onVideoPlayStart(this.mParam);
                 break;
             case EventType.ERROR:
@@ -136,21 +140,21 @@ export class BroswerVideoCom extends VideoCom {
 
     protected onDestroy(): void {
         super.onDestroy();
-        console.log('[video] BroswerVideoCom onDestroy ');
+        console.log('[video] NativeVideoCom onDestroy ');
         
         // 
         if (this.mediaVideo) {
             this.mediaVideo.stop();
-            // MediaVideoBroswerdispose
+            // 
+            this.mediaVideo.dispose();
         }
         
-        console.log('[video] BroswerVideoCom onDestroy ');
+        console.log('[video] NativeVideoCom onDestroy ');
     }
 
 
     seek(time: number): void {
-        // MediaVideoBroswerseekcurrentTime
-        this.mediaVideo.currentTime = time;
+        this.mediaVideo.seek(time);
     }
     
     getDuration(): number{
