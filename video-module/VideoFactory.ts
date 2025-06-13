@@ -26,7 +26,7 @@ export class VideoFactory{
         {
             return ViewUtil.createPrefabNode("common/video/WeChatVideo", "resources");
         }
-        else if(CC_EDITOR || sys.isBrowser)
+        else if(CC_EDITOR)
         {
             return ViewUtil.createPrefabNode("common/video/BroswerVideo", "resources");
         }
