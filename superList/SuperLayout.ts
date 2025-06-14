@@ -1060,6 +1060,12 @@ export class SuperLayout extends Component {
                     }
                 }
             }
+            // item
+            const dtCount = this.node.children.length - offset;
+            for (let i = 0; i < dtCount; i++) {
+                const child: any = this.node.children[i];
+                this.notifyRefreshItem(child);
+            }
         }
     }
     /** Item */
