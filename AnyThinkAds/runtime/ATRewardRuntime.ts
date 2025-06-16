@@ -107,34 +107,42 @@ export class ATRewardRuntime extends Component {
     //Callbacks
     onRewardedVideoAdLoaded (placementId:any) {
         printLog("onRewardedVideoAdLoaded", placementId, "", "")
+         console.error("");
     }
 
     onRewardedVideoAdFailed (placementId:any, errorInfo:any) {
         printLog("onRewardedVideoAdFailed", placementId, "", errorInfo)
+         console.error("");
     }
 
     onRewardedVideoAdPlayStart  (placementId:any, callbackInfo:any) {
         printLog("onRewardedVideoAdPlayStart", placementId, callbackInfo, "")
+        console.error("");
     }
 
     onRewardedVideoAdPlayEnd  (placementId:any, callbackInfo:any) {
         printLog("onRewardedVideoAdPlayEnd", placementId, callbackInfo, "")
+        console.error("");
     }
 
     onRewardedVideoAdPlayFailed (placementId:any, errorInfo:any, callbackInfo:any) {
         printLog("onRewardedVideoAdPlayFailed", placementId, callbackInfo, errorInfo)
+        console.error("");
     }
 
     onRewardedVideoAdClosed (placementId:any, callbackInfo:any) {
         printLog("onRewardedVideoAdClosed", placementId, callbackInfo, "")
+         console.error("");
     }
 
     onRewardedVideoAdPlayClicked  (placementId:any, callbackInfo:any) {
         printLog("onRewardedVideoAdPlayClicked", placementId, callbackInfo, "")
+        console.error(" ");
     }
 
     onReward (placementId:any, callbackInfo:any) {
-        printLog("onReward", placementId, callbackInfo, "")
+        printLog("onReward", placementId, callbackInfo, "");
+        console.error(" ");
     }
     //Callbacks added v5.8.10
     onAdSourceBiddingAttempt (placementId:any, callbackInfo:any) {
