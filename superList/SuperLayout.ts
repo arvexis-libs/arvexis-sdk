@@ -1396,9 +1396,6 @@ export class SuperLayout extends Component {
     }
     /** node */
     protected notifyRefreshItem(target: Node) {
-        if(!target.isValid) {
-            return;
-        }
         EventHandler.emitEvents(this.refreshItemEvents, target, (target as any)['__index'])
     }
     /**  */
