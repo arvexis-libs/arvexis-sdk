@@ -23,16 +23,6 @@ export enum AdEvent {
     AdOnReward = 'AdOnReward_AdEvent',
 }
 
-/**  */
-export enum WatchAdGetReward {
-    /**  */
-    Key = 'Key_WatchAdGetReward',
-    /**  */
-    Shop = 'Shop_WatchAdGetReward',
-    /**  */
-    Money = 'Money_WatchAdGetReward',
-}
-
 /**
  * 
  */
@@ -46,10 +36,10 @@ export class AdManager {
         return this.instance;
     }
 
-    private _watchAdResult: WatchAdGetReward = WatchAdGetReward.Key;
-    private _bindingData : any = null;
     private _canGetReward: boolean = false;
 
+    private _SuccessGetReward: () => void = () => {};
+    private _FailGetReward: () => void = () => {};
     private placementID() {
         if (cc.sys.os === cc.sys.OS.IOS) {
             return 'b5b44a0f115321';
@@ -76,12 +66,15 @@ export class AdManager {
     }
 
     private onRewardedVideoAdPlayEnd(placementId: any, callbackInfo: any) {
-        console.error(','+this._canGetReward);
+        console.error(',' + this._canGetReward);
         oops.message.dispatchEvent(AdEvent.AdPlayEnd);
         if (this._canGetReward) {
-            oops.message.dispatchEvent(AdEvent.AdOnReward, this._watchAdResult,this._bindingData);
+            if (this._SuccessGetReward) {
+                this._SuccessGetReward();
+            }
+        } else {
+            if (this._FailGetReward) this._FailGetReward();
         }
-        this._bindingData = null;
         this._canGetReward = false;
     }
 
@@ -201,9 +194,9 @@ export class AdManager {
         console.error('loadAD', this.placementID(), '', '');
     }
 
-    public showAd(watchAd: WatchAdGetReward, bindingData: any = null) {
-        this._watchAdResult = watchAd;
-        this._bindingData = bindingData;
+    public showAd(successGetRewardCb: () => void, failGetRewardCb: () => void = null!) {
+        this._SuccessGetReward = successGetRewardCb;
+        this._FailGetReward = failGetRewardCb;
         oops.message.dispatchEvent(AdEvent.PlayAd);
         ATRewardedVideoSDK.showAdInScenario(this.placementID(), 'f5e54970dc84e6');
         console.error(' 2  showAd');
