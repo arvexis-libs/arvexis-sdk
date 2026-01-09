@@ -4,6 +4,7 @@ const { ccclass, property } = _decorator;
 import * as cc from 'cc';
 import { ATJSSDK } from '../sdk/ATJSSDK';
 import { oops } from 'db://oops-framework/core/Oops';
+import { UIID } from '../../../game/common/config/GameUIConfig';
 
 /**  */
 export enum AdEvent {
@@ -57,9 +58,13 @@ export class AdManager {
     private onRewardedVideoAdFailed(placementId: any, errorInfo: any) {
         console.error('');
         oops.message.dispatchEvent(AdEvent.AdLoadFail);
+        this.loadAD();
     }
 
     private onRewardedVideoAdPlayStart(placementId: any, callbackInfo: any) {
+      if (oops.gui.has(UIID.UIAdLoadingMask)) {
+            oops.gui.remove(UIID.UIAdLoadingMask);
+        }
         console.error('');
         this._canGetReward = false;
         oops.message.dispatchEvent(AdEvent.AdBeginPlay);
@@ -68,14 +73,7 @@ export class AdManager {
     private onRewardedVideoAdPlayEnd(placementId: any, callbackInfo: any) {
         console.error(',' + this._canGetReward);
         oops.message.dispatchEvent(AdEvent.AdPlayEnd);
-        if (this._canGetReward) {
-            if (this._SuccessGetReward) {
-                this._SuccessGetReward();
-            }
-        } else {
-            if (this._FailGetReward) this._FailGetReward();
-        }
-        this._canGetReward = false;
+       
     }
 
     private onRewardedVideoAdPlayFailed(placementId: any, errorInfo: any, callbackInfo: any) {
@@ -86,6 +84,14 @@ export class AdManager {
     private onRewardedVideoAdClosed(placementId: any, callbackInfo: any) {
         console.error('');
         oops.message.dispatchEvent(AdEvent.AdClosed);
+         if (this._canGetReward) {
+            if (this._SuccessGetReward) {
+                this._SuccessGetReward();
+            }
+        } else {
+            if (this._FailGetReward) this._FailGetReward();
+        }
+        this._canGetReward = false;
     }
 
     private onRewardedVideoAdPlayClicked(placementId: any, callbackInfo: any) {
@@ -198,8 +204,8 @@ export class AdManager {
         this._SuccessGetReward = successGetRewardCb;
         this._FailGetReward = failGetRewardCb;
         oops.message.dispatchEvent(AdEvent.PlayAd);
+        oops.gui.open(UIID.UIAdLoadingMask);
         ATRewardedVideoSDK.showAdInScenario(this.placementID(), 'f5e54970dc84e6');
-        console.error(' 2  showAd');
     }
 
     public isReady() {
